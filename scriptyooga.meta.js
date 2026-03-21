@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V70
-// @version      70.0
+// @name         Confirmar Pedido Yooga - V70.1
+// @version      70.1
 // @description  Versão Meta para iPhone Safari
 // @author       Mateus
 // @match        *://app.yooga.com.br/*

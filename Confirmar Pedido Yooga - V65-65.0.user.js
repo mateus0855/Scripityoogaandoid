@@ -1,10 +1,12 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V65
-// @version      65.0
-// @description  Bloqueio por nome "Mateus" + Fluxo iFood. Estável e leve.
+// @name         Confirmar Pedido Yooga - V66
+// @version      66.0
+// @description  Bloqueio por nome Mateus + Auto-update via GitHub.
 // @author       Seu Nome
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*
+// @updateURL    https://github.com/mateus0855/Scripityoogaandoid/raw/refs/heads/main/Confirmar%20Pedido%20Yooga%20-%20V65-65.0.user.js
+// @downloadURL  https://github.com/mateus0855/Scripityoogaandoid/raw/refs/heads/main/Confirmar%20Pedido%20Yooga%20-%20V65-65.0.user.js
 // @grant        none
 // ==/UserScript==
 
@@ -16,27 +18,22 @@
 
     // --- 1. LÓGICA DE SEGURANÇA (POR NOME) ---
     setInterval(() => {
-        // Só executa se houver um seletor de entregador na tela
-        const selectEntregador = document.querySelector('select.ng-valid.ng-dirty.ng-touched') ||
+        const selectEntregador = document.querySelector('select.ng-valid.ng-dirty.ng-touched') || 
                                  document.querySelector('select[formcontrolname="deliveryman"]') ||
                                  document.querySelector('select');
-
-        const btnFiltrar = document.querySelector('.yooga-button-style.fill-primary') ||
+        
+        const btnFiltrar = document.querySelector('.yooga-button-style.fill-primary') || 
                            document.querySelector('button.fill-primary');
 
         if (selectEntregador && btnFiltrar) {
-            // Pega o texto da opção que está selecionada no momento
             const nomeSelecionado = selectEntregador.options[selectEntregador.selectedIndex]?.text || "";
 
-            // Verifica se o nome é exatamente "Mateus" e se ainda não foi desbloqueado
             if (nomeSelecionado.trim() === "Mateus" && btnFiltrar.dataset.desbloqueado !== "true") {
-
-                // Bloqueio visual e funcional do botão de filtrar
                 btnFiltrar.style.backgroundColor = "gray";
                 btnFiltrar.style.pointerEvents = "none";
                 btnFiltrar.style.opacity = "0.5";
 
-                const senha = prompt("⚠️ MATEUS SELECIONADO\nDigite a senha para prosseguir:");
+                const senha = prompt("⚠️ MATEUS SELECIONADO\nDigite a senha:");
 
                 if (senha === SENHA_MATEUS) {
                     btnFiltrar.dataset.desbloqueado = "true";
@@ -45,13 +42,12 @@
                     btnFiltrar.style.opacity = "1";
                 } else {
                     alert("❌ Senha Incorreta!");
-                    selectEntregador.selectedIndex = 0; // Reseta para a primeira opção (vazio/todos)
+                    selectEntregador.selectedIndex = 0;
                     btnFiltrar.style.backgroundColor = "";
                     btnFiltrar.style.pointerEvents = "auto";
                     btnFiltrar.style.opacity = "1";
                 }
             }
-            // Se o usuário mudar para qualquer outro nome, reseta a trava
             else if (nomeSelecionado.trim() !== "Mateus") {
                 btnFiltrar.dataset.desbloqueado = "false";
                 btnFiltrar.style.backgroundColor = "";
@@ -66,7 +62,6 @@
         if (window.location.href.includes("/delivery") && !document.getElementById("btn-confirmar-yooga")) {
             let tel = document.querySelector(".cliente-telefone") || document.querySelector(".customer-phone") || document.querySelector(".text-bold.m-0");
             const num = tel ? tel.innerText.replace(/\D/g, '') : "";
-
             if (num.startsWith("0800")) {
                 const ref = document.querySelector("p.entregar-em");
                 if (ref) {
@@ -74,9 +69,7 @@
                     btn.id = "btn-confirmar-yooga";
                     btn.innerText = "CONFIRMAR IFOOD";
                     btn.style = "background-color: #add8e6; color: #000; padding: 10px 18px; border-radius: 8px; text-align: center; cursor: pointer; font-weight: bold; font-size: 14px; display: inline-block; border: 1px solid #90cbdc; margin-bottom: 10px; width: 100%; box-sizing: border-box;";
-                    btn.onclick = () => {
-                        window.location.href = "https://confirmacao-entrega-propria.ifood.com.br/numero-pedido?cod=" + num.slice(-8);
-                    };
+                    btn.onclick = () => { window.location.href = "https://confirmacao-entrega-propria.ifood.com.br/numero-pedido?cod=" + num.slice(-8); };
                     ref.insertAdjacentElement('beforebegin', btn);
                 }
             }

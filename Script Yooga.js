@@ -5,8 +5,8 @@
 // @author       Seu Nome
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*
-// @updateURL    https://github.com/mateus0855/Scripityoogaandoid/raw/refs/heads/main/Confirmar%20Pedido%20Yooga%20-%20V65-65.0.user.js
-// @downloadURL  https://github.com/mateus0855/Scripityoogaandoid/raw/refs/heads/main/Confirmar%20Pedido%20Yooga%20-%20V65-65.0.user.js
+// @updateURL    https://raw.githubusercontent.com/mateus0855/Scripityoogaandoid/refs/heads/main/Script%20Yooga.js
+// @downloadURL  https://raw.githubusercontent.com/mateus0855/Scripityoogaandoid/refs/heads/main/Script%20Yooga.js
 // @grant        none
 // ==/UserScript==
 

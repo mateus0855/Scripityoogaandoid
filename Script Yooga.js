@@ -1,12 +1,12 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V66.2
-// @version      66.2
-// @description  Bloqueio por nome Mateus + Auto-update via GitHub.
+// @name         Confirmar Pedido Yooga - V67
+// @version      67.0
+// @description  Bloqueio por nome Mateus + Auto-update via GitHub (Link Limpo).
 // @author       Seu Nome
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*
-// @updateURL    https://raw.githubusercontent.com/mateus0855/Scripityoogaandoid/refs/heads/main/Script%20Yooga.js
-// @downloadURL  https://raw.githubusercontent.com/mateus0855/Scripityoogaandoid/refs/heads/main/Script%20Yooga.js
+// @updateURL    https://raw.githubusercontent.com/mateus0855/Scripityoogaandoid/main/Script%20Yooga.js
+// @downloadURL  https://raw.githubusercontent.com/mateus0855/Scripityoogaandoid/main/Script%20Yooga.js
 // @grant        none
 // ==/UserScript==
 

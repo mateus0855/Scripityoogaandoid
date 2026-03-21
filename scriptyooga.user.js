@@ -1,14 +1,15 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V67
-// @version      67.0
-// @description  Bloqueio por nome Mateus + Auto-update via GitHub (Link Limpo).
-// @author       Seu Nome
+// @name         Confirmar Pedido Yooga - V68
+// @version      68.0
+// @description  Versão compatível com a documentação oficial do Safari Userscripts.
+// @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*
-// @updateURL    https://raw.githubusercontent.com/mateus0855/Scripityoogaandoid/main/Script%20Yooga.js
-// @downloadURL  https://raw.githubusercontent.com/mateus0855/Scripityoogaandoid/main/Script%20Yooga.js
+// @updateURL    https://raw.githubusercontent.com/mateus0855/Scripityoogaandoid/main/Scriptyooga.user.js
+// @downloadURL  https://raw.githubusercontent.com/mateus0855/Scripityoogaandoid/main/Scriptyooga.user.js
 // @grant        none
 // ==/UserScript==
+
 
 (function() {
     'use strict';

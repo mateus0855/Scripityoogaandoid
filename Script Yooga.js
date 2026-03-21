@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V66.1
-// @version      66.1
+// @name         Confirmar Pedido Yooga - V66.2
+// @version      66.2
 // @description  Bloqueio por nome Mateus + Auto-update via GitHub.
 // @author       Seu Nome
 // @match        *://app.yooga.com.br/*

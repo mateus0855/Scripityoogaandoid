@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V68
-// @version      68.0
-// @description  Versão compatível com a documentação oficial do Safari Userscripts.
+// @name         Confirmar Pedido Yooga - V68.1
+// @version      68.1
+// @description  Versão compatível com a documentação oficial do Safari teste.
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*

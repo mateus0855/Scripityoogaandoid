@@ -1,14 +1,15 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V68.1
-// @version      68.1
-// @description  Versão compatível com a documentação oficial do Safari teste.
+// @name         Confirmar Pedido Yooga - V70
+// @version      70.0
+// @description  Versão Meta para iPhone Safari
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*
-// @updateURL    https://raw.githubusercontent.com/mateus0855/Scripityoogaandoid/main/Scriptyooga.meta.js
-// @downloadURL  https://raw.githubusercontent.com/mateus0855/Scripityoogaandoid/main/Scriptyooga.user.js
+// @updateURL    https://raw.githubusercontent.com/mateus0855/Scripityoogaandoid/main/scriptyooga.meta.js
+// @downloadURL  https://raw.githubusercontent.com/mateus0855/Scripityoogaandoid/main/scriptyooga.user.js
 // @grant        none
 // ==/UserScript==
+
 
 
 (function() {

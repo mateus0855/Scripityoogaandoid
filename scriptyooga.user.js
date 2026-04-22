@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V70.1 (Scroll Fix)
-// @version      70.2
+// @name         Confirmar Pedido Yooga - V70.3 (Scroll Fix)
+// @version      70.3
 // @description  Versão Meta para iPhone Safari com Correção de Scroll
 // @author       Mateus
 // @match        *://app.yooga.com.br/*

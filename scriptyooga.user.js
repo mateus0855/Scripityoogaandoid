@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V70.1
-// @version      70.1
-// @description  Versão Meta para iPhone Safari
+// @name         Confirmar Pedido Yooga - V70.1 (Scroll Fix)
+// @version      70.2
+// @description  Versão Meta para iPhone Safari com Correção de Scroll
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*
@@ -9,8 +9,6 @@
 // @downloadURL  https://raw.githubusercontent.com/mateus0855/Scripityoogaandoid/main/scriptyooga.user.js
 // @grant        none
 // ==/UserScript==
-
-
 
 (function() {
     'use strict';
@@ -97,4 +95,28 @@
             if (okBtn) { okBtn.click(); setTimeout(() => { window.location.href = URL_MESAS_YOOGA; }, 800); }
         }, 1000);
     }
+
+    // --- 4. CORREÇÃO DE TRAVAMENTO NO SCROLL (LISTA DE PEDIDOS YOOGA) ---
+    setInterval(() => {
+        const seletorLista = "body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.content > div:nth-child(3) > div.bottom > div.orders > orders-section > div";
+        const lista = document.querySelector(seletorLista);
+
+        if (lista) {
+            // Garante que a lista tenha propriedades de scroll ativas
+            lista.style.setProperty('overflow-y', 'auto', 'important');
+            lista.style.setProperty('overflow-x', 'hidden', 'important');
+            lista.style.setProperty('-webkit-overflow-scrolling', 'touch', 'important'); 
+            lista.style.setProperty('pointer-events', 'auto', 'important');
+            lista.style.setProperty('touch-action', 'pan-y', 'important');
+            
+            // Remove classes que o Ionic/Yooga usam para travar a tela
+            lista.classList.remove('scroll-lock', 'no-scroll', 'disable-scroll');
+        }
+        
+        // Destrava o corpo da página caso algum pop-up tenha deixado resquício
+        if (document.body.style.overflow === 'hidden') {
+            document.body.style.setProperty('overflow', 'auto', 'important');
+        }
+    }, 1500);
+
 })();

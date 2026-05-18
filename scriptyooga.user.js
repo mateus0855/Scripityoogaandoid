@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V70.3 (Scroll Fix)
-// @version      70.3
-// @description  Versão Meta para iPhone Safari com Correção de Scroll
+// @name         Confirmar Pedido Yooga - V87.0 (Remoção do Button Group + Autoreset)
+// @version      87.0
+// @description  Baseado na V86.0. Remove o grupo de botões de ações do delivery e mantém o sistema inteligente de print e persistência de rotas.
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*
@@ -16,13 +16,31 @@
     const URL_MESAS_YOOGA = "https://app.yooga.com.br/mesas/delivery";
     const SENHA_MATEUS = "Theus@2806";
 
-    // --- 1. LÓGICA DE SEGURANÇA (POR NOME) ---
+    // Recupera a última rota salva no navegador. Se não existir, o padrão é "TODOS".
+    let rotaAtivaFiltro = localStorage.getItem('ultimaRotaYooga') || "TODOS";
+    let ultimasRotasDetectadas = "";
+
+    // O nosso "print" na memória: guarda a referência dos elementos físicos e suas rotas
+    let printPedidosDoDia = [];
+
+    // Seletores enviados por você
+    const SELETOR_FILTRO_NATIVO = "body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.content > div:nth-child(2) > div.bottom > div.inputs > div.filter > select";
+    const SELETOR_BOTOES_REMOVER = "body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.content > div:nth-child(2) > delivery-actions-bar > div > div.button-parent > div.button-group";
+
+    // --- 0. REMOÇÃO DO GRUPO DE BOTÕES SOLICITADO ---
     setInterval(() => {
-        const selectEntregador = document.querySelector('select.ng-valid.ng-dirty.ng-touched') || 
-                                 document.querySelector('select[formcontrolname="deliveryman"]') ||
-                                 document.querySelector('select');
-        
-        const btnFiltrar = document.querySelector('.yooga-button-style.fill-primary') || 
+        const grupoBotoes = document.querySelector(SELETOR_BOTOES_REMOVER);
+        if (grupoBotoes) {
+            grupoBotoes.remove();
+        }
+    }, 300); // Executa em alta velocidade para sumir da tela antes que o usuário veja
+
+    // --- 1. LÓGICA DE SEGURANÇA DO ENTREGADOR ---
+    setInterval(() => {
+        const selectEntregador = document.querySelector('select[formcontrolname="deliveryman"]') ||
+                                 document.querySelector('select.ng-valid.ng-dirty.ng-touched');
+
+        const btnFiltrar = document.querySelector('.yooga-button-style.fill-primary') ||
                            document.querySelector('button.fill-primary');
 
         if (selectEntregador && btnFiltrar) {
@@ -96,27 +114,144 @@
         }, 1000);
     }
 
-    // --- 4. CORREÇÃO DE TRAVAMENTO NO SCROLL (LISTA DE PEDIDOS YOOGA) ---
+    // --- 4. FILTRAGEM, LIMPEZA DE CHILDS E MAPEAMENTO EM MEMÓRIA (PRINT) ---
     setInterval(() => {
-        const seletorLista = "body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.content > div:nth-child(3) > div.bottom > div.orders > orders-section > div";
-        const lista = document.querySelector(seletorLista);
+        const selectFiltro = document.querySelector(SELETOR_FILTRO_NATIVO);
+        const cardsPedidos = document.querySelectorAll('delivery-order');
 
-        if (lista) {
-            // Garante que a lista tenha propriedades de scroll ativas
-            lista.style.setProperty('overflow-y', 'auto', 'important');
-            lista.style.setProperty('overflow-x', 'hidden', 'important');
-            lista.style.setProperty('-webkit-overflow-scrolling', 'touch', 'important'); 
-            lista.style.setProperty('pointer-events', 'auto', 'important');
-            lista.style.setProperty('touch-action', 'pan-y', 'important');
-            
-            // Remove classes que o Ionic/Yooga usam para travar a tela
-            lista.classList.remove('scroll-lock', 'no-scroll', 'disable-scroll');
+        if (selectFiltro && cardsPedidos.length > 0) {
+
+            // LIMPEZA: Remove do 3º ao 9º item nativo do seletor
+            if (!selectFiltro.dataset.limpoNativo) {
+                for (let i = 9; i >= 3; i--) {
+                    const opcaoNativa = selectFiltro.querySelector(`option:nth-child(${i})`);
+                    if (opcaoNativa) opcaoNativa.remove();
+                }
+                selectFiltro.dataset.limpoNativo = "true";
+            }
+
+            // MAPEAMENTO COMPLETO
+            let rotasEncontradas = new Set();
+            let listaTemporariaParaPrint = [];
+
+            cardsPedidos.forEach(card => {
+                const badgeSpan = card.querySelector('.badge-neutral span') || card.querySelector('[class*="badge"]') || card;
+                const textoCard = badgeSpan.innerText || "";
+                let rotaDoCard = "SEM_ROTA";
+
+                if (textoCard.includes('Rota')) {
+                    const match = textoCard.match(/Rota\s+([A-Z0-9]+)/i);
+                    if (match && match[1]) {
+                        rotaDoCard = match[1].toUpperCase();
+                        rotasEncontradas.add(rotaDoCard);
+                    }
+                }
+
+                listaTemporariaParaPrint.push({
+                    elemento: card,
+                    rota: rotaDoCard
+                });
+            });
+
+            // Validação de existência da rota salva
+            let rotaSalvaValida = localStorage.getItem('ultimaRotaYooga') || "TODOS";
+            if (rotaSalvaValida !== "TODOS" && rotasEncontradas.size > 0 && !rotasEncontradas.has(rotaSalvaValida)) {
+                localStorage.removeItem('ultimaRotaYooga');
+                rotaAtivaFiltro = "TODOS";
+                rotaSalvaValida = "TODOS";
+            }
+
+            // BLINDAGEM DO PRINT: Atualiza a foto se estiver em "TODOS" ou se o print anterior sumiu da memória física
+            if (rotaAtivaFiltro === "TODOS" || printPedidosDoDia.length === 0) {
+                if (listaTemporariaParaPrint.length > 0) {
+                    printPedidosDoDia = listaTemporariaParaPrint;
+                }
+            }
+
+            const assinaturaRotasAtuais = Array.from(rotasEncontradas).sort().join(',');
+
+            // Se mudou a lista real de rotas do banco do Yooga, recria as opções sem perder a referência
+            if (assinaturaRotasAtuais !== ultimasRotasDetectadas) {
+                ultimasRotasDetectadas = signatureGerada(rotasEncontradas);
+
+                selectFiltro.querySelectorAll('option.rota-injetada').forEach(opt => opt.remove());
+
+                // Insere as rotas estáveis encontradas mantendo sempre o value="OPEN"
+                rotasEncontradas.forEach(letra => {
+                    const novaOpcao = document.createElement('option');
+                    novaOpcao.value = "OPEN";
+                    novaOpcao.textContent = `Rota ${letra}`;
+                    novaOpcao.className = 'rota-injetada';
+                    selectFiltro.appendChild(novaOpcao);
+                });
+
+                // RECORREÇÃO DO FOCO VISUAL: Re-aplica o texto correto com base na validação acima
+                let textoParaProcurar = rotaSalvaValida === "TODOS" ? "" : `Rota ${rotaSalvaValida}`;
+
+                if (textoParaProcurar) {
+                    Array.from(selectFiltro.options).forEach((opt, idx) => {
+                        if (opt.text.trim() === textoParaProcurar.trim()) {
+                            selectFiltro.selectedIndex = idx;
+                        }
+                    });
+                } else {
+                    if(selectFiltro.options[selectFiltro.selectedIndex]?.text.includes("Rota")) {
+                         selectFiltro.selectedIndex = 0;
+                    }
+                }
+            }
+
+            // OUVINTE QUE INTERCEPTA A MUDANÇA E GRAVA NO ARMAZENAMENTO DO CELULAR
+            if (!selectFiltro.dataset.escutandoRotas) {
+                selectFiltro.dataset.escutandoRotas = "true";
+
+                const gerenciarTrocaDeFiltro = (e) => {
+                    const textoSelecionado = e.target.options[e.target.selectedIndex]?.text || "";
+
+                    if (textoSelecionado.includes("Rota ")) {
+                        rotaAtivaFiltro = textoSelecionado.replace("Rota ", "").trim();
+                        localStorage.setItem('ultimaRotaYooga', rotaAtivaFiltro); // Salva na memória do aparelho
+                    } else {
+                        rotaAtivaFiltro = "TODOS";
+                        localStorage.removeItem('ultimaRotaYooga'); // Limpa se voltar para a aba geral
+                    }
+                    atualizarVisualizacaoCardsBaseadoNoPrint();
+                };
+
+                selectFiltro.addEventListener('change', gerenciarTrocaDeFiltro);
+                selectFiltro.addEventListener('click', gerenciarTrocaDeFiltro);
+                selectFiltro.addEventListener('input', gerenciarTrocaDeFiltro);
+            }
+
+            // Força a filtragem visual baseada no print persistido a cada ciclo de render do loop
+            atualizarVisualizacaoCardsBaseadoNoPrint();
         }
-        
-        // Destrava o corpo da página caso algum pop-up tenha deixado resquício
-        if (document.body.style.overflow === 'hidden') {
-            document.body.style.setProperty('overflow', 'auto', 'important');
-        }
-    }, 1500);
+    }, 600);
+
+    // Função auxiliar estável para assinatura
+    function signatureGerada(setRotas) {
+        return Array.from(setRotas).sort().join(',');
+    }
+
+    // Ocultação baseada estritamente nas referências guardadas no Print da memória
+    function atualizarVisualizacaoCardsBaseadoNoPrint() {
+        const rotaFiltroDefinitiva = localStorage.getItem('ultimaRotaYooga') || "TODOS";
+
+        if (printPedidosDoDia.length === 0) return;
+
+        printPedidosDoDia.forEach(pedido => {
+            if (pedido.elemento) {
+                if (rotaFiltroDefinitiva === "TODOS") {
+                    pedido.elemento.style.setProperty('display', 'block', 'important');
+                } else {
+                    if (pedido.rota === rotaFiltroDefinitiva) {
+                        pedido.elemento.style.setProperty('display', 'block', 'important');
+                    } else {
+                        pedido.elemento.style.setProperty('display', 'none', 'important');
+                    }
+                }
+            }
+        });
+    }
 
 })();

@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V88.3 (Correção bug mola ihpone)
-// @version      88.3
+// @name         Confirmar Pedido Yooga - V88.4 (Correção bug mola ihpone)
+// @version      88.4
 // @description  Baseado na V87.0. Remove o grupo de botões de ações do delivery e mantém o sistema inteligente de print e persistência de rotas.
 // @author       Mateus
 // @match        *://app.yooga.com.br/*

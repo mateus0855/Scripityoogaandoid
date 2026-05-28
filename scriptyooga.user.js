@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V88.0 (Correção bug ihpone)
-// @version      88.0
+// @name         Confirmar Pedido Yooga - V88.1 (Correção bug mola ihpone)
+// @version      88.1
 // @description  Baseado na V87.0. Remove o grupo de botões de ações do delivery e mantém o sistema inteligente de print e persistência de rotas.
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
@@ -32,9 +32,36 @@
     const isYoogaHost = window.location.hostname === "app.yooga.com.br";
     const isIfoodHost = window.location.hostname.includes("ifood.com.br");
 
+    const ESTILO_FIX_ROLAGEM = `
+        body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.content {
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            overscroll-behavior-y: contain !important;
+            padding-bottom: 32px !important;
+            box-sizing: border-box !important;
+            scroll-padding-bottom: 32px !important;
+        }
+
+        body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.content delivery-order:last-child {
+            display: block !important;
+            margin-bottom: 32px !important;
+        }
+    `;
+
     function agendarLoop(fn, delay) {
         fn();
         setTimeout(() => agendarLoop(fn, delay), delay);
+    }
+
+    function aplicarFixRolagem() {
+        if (!isYoogaHost) return;
+
+        if (!document.getElementById('yooga-fix-scroll')) {
+            const style = document.createElement('style');
+            style.id = 'yooga-fix-scroll';
+            style.textContent = ESTILO_FIX_ROLAGEM;
+            document.head.appendChild(style);
+        }
     }
 
     // --- 0. REMOÇÃO DOS ELEMENTOS VISUAIS ---
@@ -263,6 +290,7 @@
 
     function inicializarAutomacoes() {
         if (isYoogaHost) {
+            aplicarFixRolagem();
             agendarLoop(executarRemocaoVisual, 1500);
             agendarLoop(executarSegurancaEntregador, 2500);
             agendarLoop(executarBotaoIfood, 2000);

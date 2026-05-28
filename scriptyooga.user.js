@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V88.4 (Correção bug mola ihpone)
-// @version      88.4
+// @name         Confirmar Pedido Yooga - V88.5 (Correção bug mola ihpone)
+// @version      88.5
 // @description  Baseado na V87.0. Remove o grupo de botões de ações do delivery e mantém o sistema inteligente de print e persistência de rotas.
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
@@ -45,6 +45,16 @@
         body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.content delivery-order:last-child {
             display: block !important;
             margin-bottom: 32px !important;
+        }
+
+        body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.content .yooga-hidden-pedido-final {
+            display: block !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            min-height: 220px !important;
+            margin-bottom: 0 !important;
+            contain: layout style !important;
         }
     `;
 
@@ -173,11 +183,30 @@
     }
 
     // --- 4. FILTRAGEM, LIMPEZA DE CHILDS E MAPEAMENTO EM MEMÓRIA (PRINT) ---
+    function simularPedidoOcultoNoFinal() {
+        if (!isYoogaHost) return;
+
+        const containerLista = document.querySelector('body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.content');
+        if (!containerLista) return;
+
+        let placeholder = containerLista.querySelector('.yooga-hidden-pedido-final');
+        if (!placeholder) {
+            placeholder = document.createElement('delivery-order');
+            placeholder.className = 'yooga-hidden-pedido-final';
+            placeholder.setAttribute('aria-hidden', 'true');
+            placeholder.setAttribute('data-yooga-hidden-final', 'true');
+            placeholder.style.cssText = 'display:block !important; visibility:hidden !important; opacity:0 !important; pointer-events:none !important; min-height:220px !important; margin:0 !important;';
+            containerLista.appendChild(placeholder);
+        }
+    }
+
     function executarProcessamentoPedidos() {
         if (!isYoogaHost) return;
 
         const selectFiltro = document.querySelector(SELETOR_FILTRO_NATIVO);
         const cardsPedidos = document.querySelectorAll('delivery-order');
+
+        simularPedidoOcultoNoFinal();
 
         if (selectFiltro && cardsPedidos.length > 0) {
 

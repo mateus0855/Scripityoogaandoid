@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V87.0 (Remoção do Button Group + Autoreset)
-// @version      87.0
-// @description  Baseado na V86.0. Remove o grupo de botões de ações do delivery e mantém o sistema inteligente de print e persistência de rotas.
+// @name         Confirmar Pedido Yooga - V88.0 (Correção bug ihpone)
+// @version      88.0
+// @description  Baseado na V87.0. Remove o grupo de botões de ações do delivery e mantém o sistema inteligente de print e persistência de rotas.
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*
@@ -26,17 +26,46 @@
     // Seletores enviados por você
     const SELETOR_FILTRO_NATIVO = "body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.content > div:nth-child(2) > div.bottom > div.inputs > div.filter > select";
     const SELETOR_BOTOES_REMOVER = "body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.content > div:nth-child(2) > delivery-actions-bar > div > div.button-parent > div.button-group";
+    const SELETOR_INTEGRATION_PILLS = "body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.content > div:nth-child(2) > div.bottom > integration-pills";
+    const SELETOR_BOTAO_ACEITAR = "body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.accept";
 
-    // --- 0. REMOÇÃO DO GRUPO DE BOTÕES SOLICITADO ---
-    setInterval(() => {
+    const isYoogaHost = window.location.hostname === "app.yooga.com.br";
+    const isIfoodHost = window.location.hostname.includes("ifood.com.br");
+
+    function agendarLoop(fn, delay) {
+        fn();
+        setTimeout(() => agendarLoop(fn, delay), delay);
+    }
+
+    // --- 0. REMOÇÃO DOS ELEMENTOS VISUAIS ---
+    function executarRemocaoVisual() {
+        if (!isYoogaHost) return;
+
         const grupoBotoes = document.querySelector(SELETOR_BOTOES_REMOVER);
         if (grupoBotoes) {
             grupoBotoes.remove();
         }
-    }, 300); // Executa em alta velocidade para sumir da tela antes que o usuário veja
+
+        const integrationPills = document.querySelector(SELETOR_INTEGRATION_PILLS);
+        if (integrationPills) {
+            integrationPills.remove();
+        }
+
+        const botaoAceitar = document.querySelector(SELETOR_BOTAO_ACEITAR);
+        if (botaoAceitar) {
+            const pai = botaoAceitar.parentElement;
+            botaoAceitar.remove();
+
+            if (pai && pai.children.length === 0) {
+                pai.remove();
+            }
+        }
+    }
 
     // --- 1. LÓGICA DE SEGURANÇA DO ENTREGADOR ---
-    setInterval(() => {
+    function executarSegurancaEntregador() {
+        if (!isYoogaHost) return;
+
         const selectEntregador = document.querySelector('select[formcontrolname="deliveryman"]') ||
                                  document.querySelector('select.ng-valid.ng-dirty.ng-touched');
 
@@ -73,11 +102,13 @@
                 btnFiltrar.style.opacity = "1";
             }
         }
-    }, 500);
+    }
 
     // --- 2. BOTÃO IFOOD NO DELIVERY ---
-    setInterval(() => {
-        if (window.location.href.includes("/delivery") && !document.getElementById("btn-confirmar-yooga")) {
+    function executarBotaoIfood() {
+        if (!isYoogaHost || !window.location.href.includes("/delivery")) return;
+
+        if (!document.getElementById("btn-confirmar-yooga")) {
             let tel = document.querySelector(".cliente-telefone") || document.querySelector(".customer-phone") || document.querySelector(".text-bold.m-0");
             const num = tel ? tel.innerText.replace(/\D/g, '') : "";
             if (num.startsWith("0800")) {
@@ -92,30 +123,32 @@
                 }
             }
         }
-    }, 1000);
+    }
 
     // --- 3. LÓGICA NO IFOOD ---
-    if (window.location.href.includes("ifood.com.br")) {
-        const monitorIfood = setInterval(() => {
-            const d1 = document.querySelector('[aria-label*="Digit 1"]');
-            const cod = new URLSearchParams(window.location.search).get('cod');
-            if (d1 && cod) {
-                window.history.replaceState({}, document.title, window.location.pathname);
-                cod.split('').forEach((n, i) => {
-                    setTimeout(() => {
-                        const c = document.querySelector(`[aria-label*="Digit ${i + 1}"]`);
-                        if (c) { c.focus(); c.click(); document.execCommand('insertText', false, n); c.dispatchEvent(new Event('input', { bubbles: true })); }
-                        if (i === 7) setTimeout(() => { const b = document.querySelector(".kLtoWA.hsczDC"); if (b) b.click(); }, 600);
-                    }, i * 90);
-                });
-            }
-            const okBtn = Array.from(document.querySelectorAll(".kLtoWA.hsczDC, button")).find(b => b.innerText.toLowerCase().includes("entendi"));
-            if (okBtn) { okBtn.click(); setTimeout(() => { window.location.href = URL_MESAS_YOOGA; }, 800); }
-        }, 1000);
+    function executarAutomacaoIfood() {
+        if (!isIfoodHost) return;
+
+        const d1 = document.querySelector('[aria-label*="Digit 1"]');
+        const cod = new URLSearchParams(window.location.search).get('cod');
+        if (d1 && cod) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+            cod.split('').forEach((n, i) => {
+                setTimeout(() => {
+                    const c = document.querySelector(`[aria-label*="Digit ${i + 1}"]`);
+                    if (c) { c.focus(); c.click(); document.execCommand('insertText', false, n); c.dispatchEvent(new Event('input', { bubbles: true })); }
+                    if (i === 7) setTimeout(() => { const b = document.querySelector(".kLtoWA.hsczDC"); if (b) b.click(); }, 600);
+                }, i * 90);
+            });
+        }
+        const okBtn = Array.from(document.querySelectorAll(".kLtoWA.hsczDC, button")).find(b => b.innerText.toLowerCase().includes("entendi"));
+        if (okBtn) { okBtn.click(); setTimeout(() => { window.location.href = URL_MESAS_YOOGA; }, 800); }
     }
 
     // --- 4. FILTRAGEM, LIMPEZA DE CHILDS E MAPEAMENTO EM MEMÓRIA (PRINT) ---
-    setInterval(() => {
+    function executarProcessamentoPedidos() {
+        if (!isYoogaHost) return;
+
         const selectFiltro = document.querySelector(SELETOR_FILTRO_NATIVO);
         const cardsPedidos = document.querySelectorAll('delivery-order');
 
@@ -226,7 +259,26 @@
             // Força a filtragem visual baseada no print persistido a cada ciclo de render do loop
             atualizarVisualizacaoCardsBaseadoNoPrint();
         }
-    }, 600);
+    }
+
+    function inicializarAutomacoes() {
+        if (isYoogaHost) {
+            agendarLoop(executarRemocaoVisual, 1500);
+            agendarLoop(executarSegurancaEntregador, 2500);
+            agendarLoop(executarBotaoIfood, 2000);
+            agendarLoop(executarProcessamentoPedidos, 4000);
+        }
+
+        if (isIfoodHost) {
+            agendarLoop(executarAutomacaoIfood, 1000);
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', inicializarAutomacoes, { once: true });
+    } else {
+        inicializarAutomacoes();
+    }
 
     // Função auxiliar estável para assinatura
     function signatureGerada(setRotas) {

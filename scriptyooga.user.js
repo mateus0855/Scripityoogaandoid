@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V88.5 (Correção bug mola ihpone)
-// @version      88.5
+// @name         Confirmar Pedido Yooga - V88.6 (Correção bug mola ihpone)
+// @version      88.6
 // @description  Baseado na V87.0. Remove o grupo de botões de ações do delivery e mantém o sistema inteligente de print e persistência de rotas.
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
@@ -28,6 +28,8 @@
     const SELETOR_BOTOES_REMOVER = "body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.content > div:nth-child(2) > delivery-actions-bar > div > div.button-parent > div.button-group";
     const SELETOR_INTEGRATION_PILLS = "body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.content > div:nth-child(2) > div.bottom > integration-pills";
     const SELETOR_BOTAO_ACEITAR = "body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.accept";
+    const SELETOR_TAB_DELIVERY = "#tab-button-delivery > div > img";
+    const SELETOR_PEDIDO_MOCK = "#shepherd-delivery-mocked-order > div > div:nth-child(1) > mnt-badge > div > span";
 
     const isYoogaHost = window.location.hostname === "app.yooga.com.br";
     const isIfoodHost = window.location.hostname.includes("ifood.com.br");
@@ -317,8 +319,49 @@
         }
     }
 
+    function removerPedidoMockOferta() {
+        const spanOferta = document.querySelector(SELETOR_PEDIDO_MOCK);
+        if (!spanOferta) return;
+
+        if (spanOferta.innerText.trim().includes("Oferta")) {
+            const pedido = spanOferta.closest('delivery-order') || document.getElementById('shepherd-delivery-mocked-order');
+            if (pedido) {
+                pedido.remove();
+            }
+        }
+    }
+
+    function aguardarSeletorDeliveryEIniciar() {
+        const tentarIniciar = () => {
+            const botaoDelivery = document.querySelector(SELETOR_TAB_DELIVERY);
+            if (botaoDelivery) {
+                inicializarAutomacoes();
+                return true;
+            }
+            return false;
+        };
+
+        if (tentarIniciar()) return;
+
+        const observer = new MutationObserver(() => {
+            if (tentarIniciar()) {
+                observer.disconnect();
+            }
+        });
+
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+
+        const interval = setInterval(() => {
+            if (tentarIniciar()) {
+                clearInterval(interval);
+                observer.disconnect();
+            }
+        }, 500);
+    }
+
     function inicializarAutomacoes() {
         if (isYoogaHost) {
+            removerPedidoMockOferta();
             aplicarFixRolagem();
             agendarLoop(executarRemocaoVisual, 1500);
             agendarLoop(executarSegurancaEntregador, 2500);
@@ -332,9 +375,19 @@
     }
 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', inicializarAutomacoes, { once: true });
+        document.addEventListener('DOMContentLoaded', () => {
+            if (isIfoodHost) {
+                inicializarAutomacoes();
+            } else {
+                aguardarSeletorDeliveryEIniciar();
+            }
+        }, { once: true });
     } else {
-        inicializarAutomacoes();
+        if (isIfoodHost) {
+            inicializarAutomacoes();
+        } else {
+            aguardarSeletorDeliveryEIniciar();
+        }
     }
 
     // Função auxiliar estável para assinatura

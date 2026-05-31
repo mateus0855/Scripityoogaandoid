@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V88.6 (Correção bug mola ihpone)
-// @version      88.6
+// @name         Confirmar Pedido Yooga - V88.7 (Correção bug mola ihpone)
+// @version      88.7
 // @description  Baseado na V87.0. Remove o grupo de botões de ações do delivery e mantém o sistema inteligente de print e persistência de rotas.
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
@@ -320,15 +320,17 @@
     }
 
     function removerPedidoMockOferta() {
-        const spanOferta = document.querySelector(SELETOR_PEDIDO_MOCK);
-        if (!spanOferta) return;
+        const spansOferta = document.querySelectorAll(SELETOR_PEDIDO_MOCK);
+        if (!spansOferta.length) return;
 
-        if (spanOferta.innerText.trim().includes("Oferta")) {
-            const pedido = spanOferta.closest('delivery-order') || document.getElementById('shepherd-delivery-mocked-order');
-            if (pedido) {
-                pedido.remove();
+        spansOferta.forEach(spanOferta => {
+            if (spanOferta.innerText.trim().includes("Oferta")) {
+                const pedido = spanOferta.closest('delivery-order');
+                if (pedido) {
+                    pedido.remove();
+                }
             }
-        }
+        });
     }
 
     function aguardarSeletorDeliveryEIniciar() {

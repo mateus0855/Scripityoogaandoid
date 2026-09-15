@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V90 (Correção bug mola ihpone)
-// @version      90
-// @description  Baseado na V87.0. Remove o grupo de botões de ações do delivery e mantém o sistema inteligente de print e persistência de rotas.
+// @name         Confirmar Pedido Yooga - V92 (Fix Definitivo Prompt Mateus)
+// @version      92
+// @description  Baseado na V91. Correção definitiva na interrupção do prompt para seleção do entregador Mateus.
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*

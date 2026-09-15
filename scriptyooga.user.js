@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V90 (Correção bug mola ihpone)
-// @version      90
-// @description  Baseado na V87.0. Remove o grupo de botões de ações do delivery e mantém o sistema inteligente de print e persistência de rotas.
+// @name         Confirmar Pedido Yooga - V92 (Fix Definitivo Prompt Mateus)
+// @version      92
+// @description  Baseado na V91. Correção definitiva na interrupção do prompt para seleção do entregador Mateus.
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*
@@ -23,7 +23,7 @@
     // O nosso "print" na memória: guarda a referência dos elementos físicos e suas rotas
     let printPedidosDoDia = [];
 
-    // Seletores enviados por você
+    // Seletores
     const SELETOR_FILTRO_NATIVO = "body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.content > div:nth-child(2) > div.bottom > div.inputs > div.filter > select";
     const SELETOR_BOTOES_REMOVER = "body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.content > div:nth-child(2) > delivery-actions-bar > div > div.button-parent > div.button-group";
     const SELETOR_INTEGRATION_PILLS = "body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.content > div:nth-child(2) > div.bottom > integration-pills";
@@ -104,47 +104,60 @@
         }
     }
 
-    // --- 1. LÓGICA DE SEGURANÇA DO ENTREGADOR ---
-    function executarSegurancaEntregador() {
-        if (!isYoogaHost) return;
+    // --- 1. LÓGICA DE SEGURANÇA DO ENTREGADOR (GLOBAL DELEGATION) ---
+    let travaSenhaEmAndamento = false;
 
-        const selectEntregador = document.querySelector('select[formcontrolname="deliveryman"]') ||
-                                 document.querySelector('select.ng-valid.ng-dirty.ng-touched');
+    function interceptarSelecaoEntregador(e) {
+        if (!isYoogaHost || travaSenhaEmAndamento) return;
 
-        const btnFiltrar = document.querySelector('.yooga-button-style.fill-primary') ||
-                           document.querySelector('button.fill-primary');
+        const target = e.target;
+        if (target && target.tagName === 'SELECT' && (target.getAttribute('formcontrolname') === 'deliveryman' || target.classList.contains('ng-dirty') || target.closest('.deliveryman') || target.options[target.selectedIndex]?.text.includes("Mateus"))) {
 
-        if (selectEntregador && btnFiltrar) {
-            const nomeSelecionado = selectEntregador.options[selectEntregador.selectedIndex]?.text || "";
+            const nomeSelecionado = target.options[target.selectedIndex]?.text || "";
 
-            if (nomeSelecionado.trim() === "Mateus" && btnFiltrar.dataset.desbloqueado !== "true") {
-                btnFiltrar.style.backgroundColor = "gray";
-                btnFiltrar.style.pointerEvents = "none";
-                btnFiltrar.style.opacity = "0.5";
+            if (nomeSelecionado.trim() === "Mateus" && target.dataset.autorizado !== "true") {
+                travaSenhaEmAndamento = true;
 
-                const senha = prompt("⚠️ MATEUS SELECIONADO\nDigite a senha:");
-
-                if (senha === SENHA_MATEUS) {
-                    btnFiltrar.dataset.desbloqueado = "true";
-                    btnFiltrar.style.backgroundColor = "";
-                    btnFiltrar.style.pointerEvents = "auto";
-                    btnFiltrar.style.opacity = "1";
-                } else {
-                    alert("❌ Senha Incorreta!");
-                    selectEntregador.selectedIndex = 0;
-                    btnFiltrar.style.backgroundColor = "";
-                    btnFiltrar.style.pointerEvents = "auto";
-                    btnFiltrar.style.opacity = "1";
+                const btnFiltrar = document.querySelector('.yooga-button-style.fill-primary') || document.querySelector('button.fill-primary');
+                if (btnFiltrar) {
+                    btnFiltrar.style.backgroundColor = "gray";
+                    btnFiltrar.style.pointerEvents = "none";
+                    btnFiltrar.style.opacity = "0.5";
                 }
-            }
-            else if (nomeSelecionado.trim() !== "Mateus") {
-                btnFiltrar.dataset.desbloqueado = "false";
-                btnFiltrar.style.backgroundColor = "";
-                btnFiltrar.style.pointerEvents = "auto";
-                btnFiltrar.style.opacity = "1";
+
+                setTimeout(() => {
+                    const senha = prompt("⚠️ MATEUS SELECIONADO\nDigite a senha:");
+
+                    if (senha === SENHA_MATEUS) {
+                        target.dataset.autorizado = "true";
+                        if (btnFiltrar) {
+                            btnFiltrar.style.backgroundColor = "";
+                            btnFiltrar.style.pointerEvents = "auto";
+                            btnFiltrar.style.opacity = "1";
+                        }
+                    } else {
+                        alert("❌ Senha Incorreta!");
+                        target.dataset.autorizado = "false";
+                        target.selectedIndex = 0;
+                        target.dispatchEvent(new Event('change', { bubbles: true }));
+
+                        if (btnFiltrar) {
+                            btnFiltrar.style.backgroundColor = "";
+                            btnFiltrar.style.pointerEvents = "auto";
+                            btnFiltrar.style.opacity = "1";
+                        }
+                    }
+                    travaSenhaEmAndamento = false;
+                }, 100);
+            } else if (nomeSelecionado.trim() !== "Mateus") {
+                target.dataset.autorizado = "false";
             }
         }
     }
+
+    // Ouvintes globais na página para garantir captura imediata no clique/seleção
+    document.addEventListener('change', interceptarSelecaoEntregador, true);
+    document.addEventListener('input', interceptarSelecaoEntregador, true);
 
     // --- 2. BOTÃO IFOOD NO DELIVERY ---
     function executarBotaoIfood() {
@@ -173,18 +186,41 @@
 
         const d1 = document.querySelector('[aria-label*="Digit 1"]');
         const cod = new URLSearchParams(window.location.search).get('cod');
+
         if (d1 && cod) {
             window.history.replaceState({}, document.title, window.location.pathname);
             cod.split('').forEach((n, i) => {
                 setTimeout(() => {
                     const c = document.querySelector(`[aria-label*="Digit ${i + 1}"]`);
-                    if (c) { c.focus(); c.click(); document.execCommand('insertText', false, n); c.dispatchEvent(new Event('input', { bubbles: true })); }
-                    if (i === 7) setTimeout(() => { const b = document.querySelector(".kLtoWA.hsczDC"); if (b) b.click(); }, 600);
+                    if (c) {
+                        c.focus();
+                        c.click();
+                        document.execCommand('insertText', false, n);
+                        c.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+
+                    if (i === 7) {
+                        setTimeout(() => {
+                            const btnContinuar = Array.from(document.querySelectorAll('button')).find(b =>
+                                b.innerText.toLowerCase().includes("continuar") ||
+                                b.classList.contains("OrderNumber__footer-button")
+                            ) || document.querySelector(".kLtoWA.hsczDC");
+
+                            if (btnContinuar) {
+                                btnContinuar.className = "BaseButton-sc-odyat6-0 EmCUz OrderNumber__footer-button";
+                                btnContinuar.click();
+                            }
+                        }, 600);
+                    }
                 }, i * 90);
             });
         }
+
         const okBtn = Array.from(document.querySelectorAll(".kLtoWA.hsczDC, button")).find(b => b.innerText.toLowerCase().includes("entendi"));
-        if (okBtn) { okBtn.click(); setTimeout(() => { window.location.href = URL_MESAS_YOOGA; }, 800); }
+        if (okBtn) {
+            okBtn.click();
+            setTimeout(() => { window.location.href = URL_MESAS_YOOGA; }, 800);
+        }
     }
 
     // --- 4. FILTRAGEM, LIMPEZA DE CHILDS E MAPEAMENTO EM MEMÓRIA (PRINT) ---
@@ -215,7 +251,6 @@
 
         if (selectFiltro && cardsPedidos.length > 0) {
 
-            // LIMPEZA: Remove do 3º ao 9º item nativo do seletor
             if (!selectFiltro.dataset.limpoNativo) {
                 for (let i = 9; i >= 3; i--) {
                     const opcaoNativa = selectFiltro.querySelector(`option:nth-child(${i})`);
@@ -224,7 +259,6 @@
                 selectFiltro.dataset.limpoNativo = "true";
             }
 
-            // MAPEAMENTO COMPLETO
             let rotasEncontradas = new Set();
             let listaTemporariaParaPrint = [];
 
@@ -247,7 +281,6 @@
                 });
             });
 
-            // Validação de existência da rota salva
             let rotaSalvaValida = localStorage.getItem('ultimaRotaYooga') || "TODOS";
             if (rotaSalvaValida !== "TODOS" && rotasEncontradas.size > 0 && !rotasEncontradas.has(rotaSalvaValida)) {
                 localStorage.removeItem('ultimaRotaYooga');
@@ -255,7 +288,6 @@
                 rotaSalvaValida = "TODOS";
             }
 
-            // BLINDAGEM DO PRINT: Atualiza a foto se estiver em "TODOS" ou se o print anterior sumiu da memória física
             if (rotaAtivaFiltro === "TODOS" || printPedidosDoDia.length === 0) {
                 if (listaTemporariaParaPrint.length > 0) {
                     printPedidosDoDia = listaTemporariaParaPrint;
@@ -264,13 +296,11 @@
 
             const assinaturaRotasAtuais = Array.from(rotasEncontradas).sort().join(',');
 
-            // Se mudou a lista real de rotas do banco do Yooga, recria as opções sem perder a referência
             if (assinaturaRotasAtuais !== ultimasRotasDetectadas) {
                 ultimasRotasDetectadas = signatureGerada(rotasEncontradas);
 
                 selectFiltro.querySelectorAll('option.rota-injetada').forEach(opt => opt.remove());
 
-                // Insere as rotas estáveis encontradas mantendo sempre o value="OPEN"
                 rotasEncontradas.forEach(letra => {
                     const novaOpcao = document.createElement('option');
                     novaOpcao.value = "OPEN";
@@ -279,7 +309,6 @@
                     selectFiltro.appendChild(novaOpcao);
                 });
 
-                // RECORREÇÃO DO FOCO VISUAL: Re-aplica o texto correto com base na validação acima
                 let textoParaProcurar = rotaSalvaValida === "TODOS" ? "" : `Rota ${rotaSalvaValida}`;
 
                 if (textoParaProcurar) {
@@ -295,7 +324,6 @@
                 }
             }
 
-            // OUVINTE QUE INTERCEPTA A MUDANÇA E GRAVA NO ARMAZENAMENTO DO CELULAR
             if (!selectFiltro.dataset.escutandoRotas) {
                 selectFiltro.dataset.escutandoRotas = "true";
 
@@ -304,10 +332,10 @@
 
                     if (textoSelecionado.includes("Rota ")) {
                         rotaAtivaFiltro = textoSelecionado.replace("Rota ", "").trim();
-                        localStorage.setItem('ultimaRotaYooga', rotaAtivaFiltro); // Salva na memória do aparelho
+                        localStorage.setItem('ultimaRotaYooga', rotaAtivaFiltro);
                     } else {
                         rotaAtivaFiltro = "TODOS";
-                        localStorage.removeItem('ultimaRotaYooga'); // Limpa se voltar para a aba geral
+                        localStorage.removeItem('ultimaRotaYooga');
                     }
                     atualizarVisualizacaoCardsBaseadoNoPrint();
                 };
@@ -317,7 +345,6 @@
                 selectFiltro.addEventListener('input', gerenciarTrocaDeFiltro);
             }
 
-            // Força a filtragem visual baseada no print persistido a cada ciclo de render do loop
             atualizarVisualizacaoCardsBaseadoNoPrint();
         }
     }
@@ -331,7 +358,6 @@
         if (isYoogaHost) {
             aplicarFixRolagem();
             agendarLoop(executarRemocaoVisual, 1500);
-            agendarLoop(executarSegurancaEntregador, 2500);
             agendarLoop(executarBotaoIfood, 2000);
             agendarLoop(executarProcessamentoPedidos, 4000);
         }
@@ -348,12 +374,10 @@
         inicializarAutomacoes();
     }
 
-    // Função auxiliar estável para assinatura
     function signatureGerada(setRotas) {
         return Array.from(setRotas).sort().join(',');
     }
 
-    // Ocultação baseada estritamente nas referências guardadas no Print da memória
     function atualizarVisualizacaoCardsBaseadoNoPrint() {
         const rotaFiltroDefinitiva = localStorage.getItem('ultimaRotaYooga') || "TODOS";
 

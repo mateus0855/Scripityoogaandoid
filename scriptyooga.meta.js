@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V95
-// @version      95
-// @description  Correção definitiva na interrupção do prompt para seleção de entregadores restritos.
+// @name         Confirmar Pedido Yooga - V96
+// @version      96
+// @description  Correção na validação do prompt: cancelar ação não exibe mais mensagem de senha incorreta.
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*
@@ -9,3 +9,4 @@
 // @downloadURL  https://raw.githubusercontent.com/mateus0855/Scripityoogaandoid/main/scriptyooga.user.js
 // @grant        none
 // ==/UserScript==
+

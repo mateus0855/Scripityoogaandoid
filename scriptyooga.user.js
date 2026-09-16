@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V95
-// @version      95
-// @description  Correção definitiva na interrupção do prompt para seleção de entregadores restritos.
+// @name         Confirmar Pedido Yooga - V96
+// @version      96
+// @description  Correção na validação do prompt: cancelar ação não exibe mais mensagem de senha incorreta.
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*
@@ -141,25 +141,30 @@
                     const senhaDigitada = prompt(`⚠️ ${chaveEntregador.toUpperCase()} SELECIONADO\nDigite a senha:`);
                     const senhaEsperada = SENHAS_ENTREGADORES[chaveEntregador];
 
-                    if (senhaDigitada === senhaEsperada) {
+                    // Se o usuário clicou em Cancelar no prompt
+                    if (senhaDigitada === null) {
+                        target.dataset.autorizado = "false";
+                        target.selectedIndex = 0;
+                        target.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                    // Se digitou a senha correta
+                    else if (senhaDigitada === senhaEsperada) {
                         target.dataset.autorizado = "true";
-                        if (btnFiltrar) {
-                            btnFiltrar.style.backgroundColor = "";
-                            btnFiltrar.style.pointerEvents = "auto";
-                            btnFiltrar.style.opacity = "1";
-                        }
-                    } else {
+                    }
+                    // Se digitou algo, mas a senha está errada
+                    else {
                         alert("❌ Senha Incorreta!");
                         target.dataset.autorizado = "false";
                         target.selectedIndex = 0;
                         target.dispatchEvent(new Event('change', { bubbles: true }));
-
-                        if (btnFiltrar) {
-                            btnFiltrar.style.backgroundColor = "";
-                            btnFiltrar.style.pointerEvents = "auto";
-                            btnFiltrar.style.opacity = "1";
-                        }
                     }
+
+                    if (btnFiltrar) {
+                        btnFiltrar.style.backgroundColor = "";
+                        btnFiltrar.style.pointerEvents = "auto";
+                        btnFiltrar.style.opacity = "1";
+                    }
+
                     travaSenhaEmAndamento = false;
                 }, 100);
             } else if (!chaveEntregador) {

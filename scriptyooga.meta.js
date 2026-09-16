@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V92 (Fix Definitivo Prompt Mateus)
-// @version      92
-// @description  Baseado na V91. Correção definitiva na interrupção do prompt para seleção do entregador Mateus.
+// @name         Confirmar Pedido Yooga - V95
+// @version      95
+// @description  Correção definitiva na interrupção do prompt para seleção de entregadores restritos.
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*

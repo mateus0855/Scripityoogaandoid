@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V92 (Fix Definitivo Prompt Mateus)
-// @version      92
-// @description  Baseado na V91. Correção definitiva na interrupção do prompt para seleção do entregador Mateus.
+// @name         Confirmar Pedido Yooga - V95
+// @version      95
+// @description  Correção definitiva na interrupção do prompt para seleção de entregadores restritos.
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*
@@ -14,7 +14,16 @@
     'use strict';
 
     const URL_MESAS_YOOGA = "https://app.yooga.com.br/mesas/delivery";
-    const SENHA_MATEUS = "Theus@2806";
+
+    // Mapa de entregadores e suas respectivas senhas
+    const SENHAS_ENTREGADORES = {
+        "Mateus": "Theus@2806",
+        "Entregador Diarista": "Theus@2806",
+        "Entregador Diarista 2": "Theus@2806",
+        "Guilherme": "995406634",
+        "Pedro Augusto Alves Lima costa": "ukm0b32",
+        "Geovane": "94380508"
+    };
 
     // Recupera a última rota salva no navegador. Se não existir, o padrão é "TODOS".
     let rotaAtivaFiltro = localStorage.getItem('ultimaRotaYooga') || "TODOS";
@@ -111,11 +120,14 @@
         if (!isYoogaHost || travaSenhaEmAndamento) return;
 
         const target = e.target;
-        if (target && target.tagName === 'SELECT' && (target.getAttribute('formcontrolname') === 'deliveryman' || target.classList.contains('ng-dirty') || target.closest('.deliveryman') || target.options[target.selectedIndex]?.text.includes("Mateus"))) {
+        const nomesCadastrados = Object.keys(SENHAS_ENTREGADORES);
 
-            const nomeSelecionado = target.options[target.selectedIndex]?.text || "";
+        if (target && target.tagName === 'SELECT' && (target.getAttribute('formcontrolname') === 'deliveryman' || target.classList.contains('ng-dirty') || target.closest('.deliveryman') || nomesCadastrados.some(nome => target.options[target.selectedIndex]?.text.includes(nome)))) {
 
-            if (nomeSelecionado.trim() === "Mateus" && target.dataset.autorizado !== "true") {
+            const nomeSelecionado = target.options[target.selectedIndex]?.text.trim() || "";
+            const chaveEntregador = nomesCadastrados.find(nome => nomeSelecionado === nome || nomeSelecionado.includes(nome));
+
+            if (chaveEntregador && target.dataset.autorizado !== "true") {
                 travaSenhaEmAndamento = true;
 
                 const btnFiltrar = document.querySelector('.yooga-button-style.fill-primary') || document.querySelector('button.fill-primary');
@@ -126,9 +138,10 @@
                 }
 
                 setTimeout(() => {
-                    const senha = prompt("⚠️ MATEUS SELECIONADO\nDigite a senha:");
+                    const senhaDigitada = prompt(`⚠️ ${chaveEntregador.toUpperCase()} SELECIONADO\nDigite a senha:`);
+                    const senhaEsperada = SENHAS_ENTREGADORES[chaveEntregador];
 
-                    if (senha === SENHA_MATEUS) {
+                    if (senhaDigitada === senhaEsperada) {
                         target.dataset.autorizado = "true";
                         if (btnFiltrar) {
                             btnFiltrar.style.backgroundColor = "";
@@ -149,7 +162,7 @@
                     }
                     travaSenhaEmAndamento = false;
                 }, 100);
-            } else if (nomeSelecionado.trim() !== "Mateus") {
+            } else if (!chaveEntregador) {
                 target.dataset.autorizado = "false";
             }
         }

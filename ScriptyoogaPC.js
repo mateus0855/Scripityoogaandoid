@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Yooga - Monitor V103 (Precisão DOM + Médias 03h)
+// @name         Yooga - Monitor V105
 // @match        *://app.yooga.com.br/*
 // @grant        none
 // @run-at       document-start
@@ -20,10 +20,13 @@
     let statusPedidosAPI = {};
     let dadosPedidosAPI = {};
     let pagamentosPedidosAPI = {};
+    let rotasInvertidas = {};
+    let ultimaRotaFoiInvertida = false;
     let localizacaoDispositivo = { latitude: null, longitude: null };
     const LOCALIZACAO_LOJA = { latitude: -5.04603646, longitude: -42.73172915 };
     const CHAVE_TELEFONES_ENTREGADORES = 'yooga_telefones_entregadores';
     const CHAVE_PAGAMENTOS_PEDIDOS = 'yooga_pagamentos_pedidos';
+    const CHAVE_ENVIO_AUTOMATICO_ENTREGADORES = 'yooga_envio_automatico_entregadores';
 
     try {
         pagamentosPedidosAPI = JSON.parse(localStorage.getItem(CHAVE_PAGAMENTOS_PEDIDOS) || '{}');
@@ -37,6 +40,25 @@
         } catch (e) {
             return {};
         }
+    }
+
+    function obterEnviosAutomaticosEntregadores() {
+        try {
+            return JSON.parse(localStorage.getItem(CHAVE_ENVIO_AUTOMATICO_ENTREGADORES) || '{}');
+        } catch (e) {
+            return {};
+        }
+    }
+
+    function entregadorTemEnvioAutomatico(nome) {
+        return obterEnviosAutomaticosEntregadores()[nome] === true;
+    }
+
+    function alternarEnvioAutomaticoEntregador(nome, ativo) {
+        const envios = obterEnviosAutomaticosEntregadores();
+        envios[nome] = Boolean(ativo);
+        localStorage.setItem(CHAVE_ENVIO_AUTOMATICO_ENTREGADORES, JSON.stringify(envios));
+        escanearTudo();
     }
 
     function normalizarTelefone(telefone) {
@@ -62,6 +84,14 @@
         );
     }
 
+    function extrairCodigoLocalizadorPedido(telefoneRaw) {
+        const texto = String(telefoneRaw || '');
+        if (!texto || !texto.toUpperCase().includes('ID:')) return '';
+        const match = texto.match(/ID:\s*(\d{8})/i);
+        if (!match) return '';
+        return match[1];
+    }
+
     function extrairDadosPedidoAPI(pedido, numero) {
         let enderecoDetalhado = {};
         try {
@@ -77,13 +107,16 @@
         const pagamento = pagamentos[0] || {};
         const enderecoBase = pedido.address || enderecoDetalhado.endereco || enderecoDetalhado.formatted_address || '';
         const enderecoComplementar = pedido.address2 || '';
+        const telefoneRaw = cliente.phone || pedido.phone || pedido.telefone || pedido.phoneNumber || '';
+        const codigoLocalizador = extrairCodigoLocalizadorPedido(telefoneRaw);
         const endereco = [enderecoBase, enderecoComplementar].filter(Boolean).join(', ');
         return {
             id: pedido.id,
             numero: String(numero || pedido.id || ''),
             status: pedido.status || '',
             nome: cliente.name || '',
-            telefone: cliente.phone || '',
+            telefone: telefoneRaw,
+            codigoLocalizador,
             endereco,
             complemento: enderecoDetalhado.complemento || enderecoDetalhado.complement || pedido.complemento || '',
             referencia: enderecoDetalhado.referencia || enderecoDetalhado.reference || pedido.referencia || pedido.reference || '',
@@ -120,6 +153,7 @@
             dadosPedidosAPI[chavePedido] = { ...dadosPedidosAPI[chavePedido], ...dadosPedido };
             if (possuiNumero) dadosPedidosAPI[String(numero)] = dadosPedidosAPI[chavePedido];
             if (possuiId) dadosPedidosAPI[`id:${id}`] = dadosPedidosAPI[chavePedido];
+            console.info('[Yooga Monitor] Dados completos extraídos da API', dadosPedido);
             if (ehPedidoPrincipal) {
                 registrarMudaStatus(possuiNumero ? String(numero) : String(id), status, pedido.createdAt);
             }
@@ -229,6 +263,7 @@
         if (normalizado === 'PREPARING') return 'preparando';
         if (['DELIVERING', 'DISPATCHED', 'OUT_FOR_DELIVERY', 'IN_DELIVERY', 'ON_THE_WAY', 'SHIPPED'].includes(normalizado)) return 'em entrega';
         if (normalizado === 'DELIVERED') return 'em entrega';
+        if (normalizado === 'COLLECTED') return 'em entrega';
         if (normalizado === 'FINISHED') return 'finished';
         if (normalizado === 'CANCELLED') return 'cancelled';
         return status;
@@ -357,8 +392,8 @@
             ? Math.round(dados.historicoEntrega.reduce((acc, curr) => acc + curr.minutos, 0) / dados.historicoEntrega.length)
             : null;
 
-        const mediaTotal = dados.historicoTotal?.length
-            ? Math.round(dados.historicoTotal.reduce((acc, curr) => acc + curr.minutos, 0) / dados.historicoTotal.length)
+        const mediaTotal = mediaPreparo !== null && mediaEntrega !== null
+            ? mediaPreparo + mediaEntrega
             : null;
 
         return {
@@ -512,17 +547,59 @@
         return JSON.stringify(String(valor || '')).replace(/</g, '\\u003c');
     }
 
-    function obterDadosPedidoMensagem(numero) {
-        const registrosAPI = Object.values(dadosPedidosAPI);
-        const registrosPagamento = Object.values(pagamentosPedidosAPI);
-        const dadosAPI = dadosPedidosAPI[String(numero)] || dadosPedidosAPI[`id:${numero}`] ||
-            registrosAPI.find(dados => String(dados?.id) === String(numero) || String(dados?.numero) === String(numero));
-        const dadosPagamento = pagamentosPedidosAPI[String(numero)] || pagamentosPedidosAPI[`id:${numero}`] ||
-            registrosPagamento.find(dados => String(dados?.id) === String(numero) || String(dados?.numero) === String(numero)) || {};
-        const dadosMemoria = memoriaPedidosGeral[numero] || {};
+    function normalizarTextoBusca(valor) {
+        return String(valor || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toLowerCase();
+    }
+
+    function obterRegistroPedidoExato(numero, mapa, nomeCliente = '') {
+        const alvo = String(numero ?? '').trim();
+        const nomeAlvo = normalizarTextoBusca(nomeCliente);
+        if (!alvo && !nomeAlvo) return null;
+
+        const mapaValores = Object.values(mapa || {});
+        const registrosUnicos = mapaValores.filter((registro, indice, lista) =>
+            registro && lista.findIndex(outro => outro === registro) === indice
+        );
+
+        const correspondeNumero = registro => {
+            const numeroAtual = String(registro.numero ?? '').trim();
+            return String(registro.id ?? '') === alvo || numeroAtual === alvo;
+        };
+
+        if (alvo && nomeAlvo) {
+            return registrosUnicos.find(registro =>
+                correspondeNumero(registro) && normalizarTextoBusca(registro.nome || '') === nomeAlvo
+            ) || null;
+        }
+
+        const registroPorNumero = registrosUnicos.find(correspondeNumero);
+        if (registroPorNumero) return registroPorNumero;
+
+        if (!nomeAlvo) return null;
+
+        const candidatosPorNome = registrosUnicos.filter(registro => {
+            const nomeAtual = normalizarTextoBusca(registro.nome || '');
+            return nomeAtual && nomeAtual === nomeAlvo;
+        });
+
+        return candidatosPorNome.length === 1 ? candidatosPorNome[0] : null;
+    }
+
+    function obterDadosPedidoMensagem(numero, nomeCliente = '') {
+        const numeroAlvo = String(numero ?? '').trim();
+        const nomeAlvo = String(nomeCliente || '').trim();
+        const dadosMemoria = memoriaPedidosGeral[String(numeroAlvo)] || memoriaPedidosGeral[Number(numeroAlvo)] || {};
+        const nomeBase = nomeAlvo || dadosMemoria.nome || '';
+        const dadosAPI = obterRegistroPedidoExato(numeroAlvo, dadosPedidosAPI, nomeBase);
+        const dadosPagamento = obterRegistroPedidoExato(numeroAlvo, pagamentosPedidosAPI) || {};
         return {
-            numero: String(numero),
-            nome: dadosAPI?.nome || dadosMemoria.nome || '',
+            numero: String(numeroAlvo),
+            nome: dadosAPI?.nome || dadosMemoria.nome || nomeBase || '',
             endereco: dadosAPI?.endereco || dadosMemoria.endereco || '',
             complemento: dadosAPI?.complemento || '',
             referencia: dadosAPI?.referencia || '',
@@ -531,7 +608,8 @@
             valorPagamento: dadosAPI?.valorPagamento ?? dadosPagamento.valorPagamento,
             trocoPara: dadosAPI?.trocoPara ?? dadosPagamento.trocoPara,
             latitude: dadosAPI?.latitude,
-            longitude: dadosAPI?.longitude
+            longitude: dadosAPI?.longitude,
+            codigoLocalizador: dadosAPI?.codigoLocalizador || ''
         };
     }
 
@@ -553,7 +631,7 @@
         } else if (formaNormalizada.includes('cartao')) {
             linhas.push('🔴 Pedido não pago, Levar Maquininha');
         } else {
-            
+
             const valor = Number(pedido.valorPagamento);
             const trocoPara = Number(pedido.trocoPara);
             if (Number.isFinite(trocoPara) && Number.isFinite(valor) && trocoPara > valor) {
@@ -564,43 +642,112 @@
         return linhas.join('\n');
     }
 
-    function gerarLinkRota(pedidos) {
+    function pedidoNaoDeveSerEnviado(numero) {
+        return false;
+    }
+
+    function gerarLinkRota(pedidos, rotaInvertida = false) {
         const pedidosComCoordenadas = pedidos.filter(pedido =>
             Number.isFinite(pedido.latitude) && Number.isFinite(pedido.longitude)
         );
         if (!pedidosComCoordenadas.length) return '';
 
-        const pontos = [
-            `${LOCALIZACAO_LOJA.latitude},${LOCALIZACAO_LOJA.longitude}`,
-            ...pedidosComCoordenadas.map(pedido => `${pedido.latitude},${pedido.longitude}`)
-        ];
+        const pontosPedidos = pedidosComCoordenadas.map(pedido => `${pedido.latitude},${pedido.longitude}`);
+        const pontoLoja = `${LOCALIZACAO_LOJA.latitude},${LOCALIZACAO_LOJA.longitude}`;
+        const pontos = rotaInvertida
+            ? [...pontosPedidos, pontoLoja]
+            : [pontoLoja, ...pontosPedidos];
 
         return `https://www.google.com/maps/dir/${pontos.join('/')}`;
     }
 
-    function gerarMensagemRota(letra) {
-        const pedidos = (bancoDeDadosRotas[letra] || []).map(obterDadosPedidoMensagem);
+    function extrairPedidoDaListaRota(li) {
+        const dadosCliente = li.querySelector('.right-content-card-data-pedido');
+        const numero = dadosCliente?.querySelector('h5')?.innerText?.replace('#', '').trim()
+            || li.querySelector('h5')?.innerText?.replace('#', '').trim();
+        const nome = dadosCliente?.querySelector(
+            '.row-bottom-card-content .row-button-left-side-card h4'
+        )?.innerText?.trim()
+            || dadosCliente?.querySelector('h4')?.innerText?.trim()
+            || li.querySelector('h4')?.innerText?.trim()
+            || '';
+        return { numero, nome };
+    }
+
+    function obterPedidosDaRotaParaEnvio(letra) {
+        const modal = document.querySelector('.header-content-rotas.create-rota');
+        const pedidosDoModal = modal
+            ? Array.from(modal.querySelectorAll('.body-pedidos-content.rotas ul li'))
+                .map(extrairPedidoDaListaRota)
+                .filter(pedido => pedido.numero)
+            : [];
+
+        if (pedidosDoModal.length) return pedidosDoModal;
+
+        console.warn('[Yooga Monitor] Modal da rota sem pedidos; usando banco de dados da letra', letra);
+        return (bancoDeDadosRotas[letra] || []).map(numero => ({
+            numero,
+            nome: memoriaPedidosGeral[String(numero)]?.nome || memoriaPedidosGeral[Number(numero)]?.nome || ''
+        }));
+    }
+
+    function obterDadosPedidosRota(letra) {
+        const pedidosDaRota = obterPedidosDaRotaParaEnvio(letra);
+        const pedidosIgnorados = pedidosDaRota.filter(pedido => pedidoNaoDeveSerEnviado(pedido.numero));
+        if (pedidosIgnorados.length) {
+            console.warn('[Yooga Monitor] Pedidos ignorados por status', pedidosIgnorados);
+        }
+        const pedidosPermitidos = pedidosDaRota
+            .filter(pedido => !pedidoNaoDeveSerEnviado(pedido.numero))
+            .map(pedido => obterDadosPedidoMensagem(pedido.numero, pedido.nome));
+        if (!pedidosPermitidos.length && pedidosDaRota.length) {
+            console.warn('[Yooga Monitor] Filtro removeu todos os pedidos; usando a lista visível da rota', pedidosDaRota);
+            return pedidosDaRota.map(pedido => obterDadosPedidoMensagem(pedido.numero, pedido.nome));
+        }
+        return pedidosPermitidos;
+    }
+
+    function gerarMensagemRota(letra, pedidosCapturados = null) {
+        const pedidos = pedidosCapturados || obterDadosPedidosRota(letra);
+        console.info('[Yooga Monitor] Pedidos usados no envio', pedidos.map(pedido => ({ numero: pedido.numero, nome: pedido.nome })));
         const mensagemPedidos = pedidos.map(pedido => {
             const possuiCoordenadas = pedido.latitude !== null && pedido.longitude !== null &&
                 pedido.latitude !== undefined && pedido.longitude !== undefined;
             const localizacao = possuiCoordenadas
-                ? `https://www.google.com/maps/search/?api=1&query=${pedido.latitude},${pedido.longitude}`
+                ? [
+                    'LOCALIZAÇÃO INDIVIDUAL',
+                    `https://www.google.com/maps/search/?api=1&query=${pedido.latitude},${pedido.longitude}`
+                ].join('\n')
                 : 'Localização do pedido não encontrada na API';
+            const formaPagamento = String(pedido.formaPagamento || '').toUpperCase();
+            const codigoLocalizador = pedido.codigoLocalizador || '';
+            const urlLocalizador = codigoLocalizador && /IFOOD/i.test(formaPagamento)
+                ? `https://confirmacao-entrega-propria.ifood.com.br/numero-pedido?cod=${codigoLocalizador}`
+                : '';
+            const localizadorLinha = urlLocalizador
+                ? [
+                    'COMFIRMAÇÃO IFOOD',
+                    `${urlLocalizador}`,
+                    `Localizador: ${codigoLocalizador}`
+                ].join('\n')
+                : '';
 
             return [
-                `*Pedido* #${pedido.numero}`,
-                `Nome: ${pedido.nome || 'Não informado'}`,
+                `Pedido #${pedido.numero}`,
+                `Nome: *${pedido.nome || 'Não informado'}*`,
                 `Endereço: ${pedido.endereco || 'Não informado'}`,
                 `Complemento: ${pedido.complemento || ''}`,
                 `Referência: ${pedido.referencia || ''}`,
                 gerarInformacaoPagamento(pedido),
-                localizacao
-            ].join('\n');
+                localizacao,
+                localizadorLinha
+            ].filter(Boolean).join('\n');
         });
-        const linkRota = gerarLinkRota(pedidos);
+        const linkRota = gerarLinkRota(pedidos, rotasInvertidas[letra] === true);
+        const rotaLinha = linkRota ? `*****LINK DA ROTA*****\n${linkRota}` : '';
         return [
-            mensagemPedidos.join('\n\n'),
-            linkRota ? `Link da Rota:\n\n${linkRota}` : ''
+            mensagemPedidos.join('\n\n____________________\n\n'),
+            rotaLinha
         ].filter(Boolean).join('\n\n');
     }
 
@@ -659,6 +806,26 @@
         };
     };
 
+    function enviarMensagemNode(letra, nome) {
+        const telefone = normalizarTelefone(obterTelefonesEntregadores()[nome]);
+        const pedidos = obterDadosPedidosRota(letra);
+        const mensagem = gerarMensagemRota(letra, pedidos);
+        if (!telefone) return Promise.reject(new Error('Telefone do entregador não cadastrado.'));
+        if (!mensagem) return Promise.reject(new Error('Não há pedidos capturados nessa rota.'));
+
+        const corpo = JSON.stringify({ telefone, mensagem, pedidos });
+        const url = 'http://localhost:3030/api/mensagem';
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: corpo
+        }).then(async resposta => {
+            const dados = await resposta.json();
+            if (!resposta.ok) throw new Error(dados.erro || `Gateway HTTP ${resposta.status}`);
+            return dados;
+        });
+    }
+
     window.enviarMensagemEntregador = function(letra, nome) {
         if (!nome || nome === 'Selecionar...') {
             alert('Selecione um entregador antes de enviar a mensagem.');
@@ -674,17 +841,9 @@
         if (!telefone) return;
 
         if (telefone.length === 10 || telefone.length === 11) telefone = `55${telefone}`;
-        const mensagem = gerarMensagemRota(letra);
-        if (!mensagem) {
-            alert('Não há pedidos capturados nessa rota.');
-            return;
-        }
-
-        const urlWhatsApp = `https://web.whatsapp.com/send?phone=${telefone}&text=${encodeURIComponent(mensagem)}`;
-        const abaWhatsApp = window.open(urlWhatsApp, '_blank');
-        if (!abaWhatsApp) {
-            alert('O navegador bloqueou a nova aba do WhatsApp. Permita pop-ups para este site.');
-        }
+        enviarMensagemNode(letra, nome)
+            .then(() => alert('Mensagem enviada pelo programa Node.js.'))
+            .catch(erro => alert(`Não foi possível enviar pelo Node.js: ${erro.message}`));
     };
 
     window.fazerCliqueYooga = function(tipo, indexEntregador = null) {
@@ -741,7 +900,8 @@
                 break;
         }
 
-        if (elemento) {
+        const executarClique = () => {
+            if (!elemento) return;
             ['mousedown', 'mouseup', 'click'].forEach(name => {
                 elemento.dispatchEvent(new MouseEvent(name, { bubbles: true, cancelable: true, view: window }));
             });
@@ -750,7 +910,20 @@
                 return;
             }
             setTimeout(escanearTudo, 400);
+        };
+
+        const modalDespacho = document.querySelector('.header-content-rotas.create-rota');
+        const nomeDespacho = modalDespacho?.querySelector('.value-filter')?.innerText?.trim() || '';
+        if (tipo === 'DESPACHAR' && entregadorTemEnvioAutomatico(nomeDespacho)) {
+            const letraDespacho = (modalDespacho?.querySelector('.top-title h4')?.innerText || '')
+                .replace(/Rota\s+/i, '').trim().toUpperCase();
+            enviarMensagemNode(letraDespacho, nomeDespacho)
+                .then(executarClique)
+                .catch(erro => alert(`Não foi possível enviar pelo Node.js: ${erro.message}`));
+            return;
         }
+
+        executarClique();
     };
 
     function capturarLocalizacaoDoPino(elemento, numeroPedido) {
@@ -902,8 +1075,9 @@
                     .sort((a, b) => a.ordem - b.ordem || a.indice - b.indice);
                 const idsNaListaDesteModal = [];
                 itensDaRota.forEach(({ li }) => {
-                    const num = li.querySelector('h5')?.innerText.replace('#', '').trim();
-                    const nomeCompleto = li.querySelector('h4')?.innerText?.trim();
+                    const pedidoDaLista = extrairPedidoDaListaRota(li);
+                    const num = pedidoDaLista.numero;
+                    const nomeCompleto = pedidoDaLista.nome;
                     const statusLi = li.querySelector('.tags-right-content ion-badge')?.innerText?.trim() || "";
 
                     if (num) {
@@ -919,7 +1093,13 @@
                     }
                 });
                 bancoDeDadosRotas[letraNoModal] = idsNaListaDesteModal;
-                console.info('[Yooga Monitor] Ordem da rota usada no link', idsNaListaDesteModal);
+                if (!(letraNoModal in rotasInvertidas)) {
+                    rotasInvertidas[letraNoModal] = ultimaRotaFoiInvertida;
+                }
+                console.info('[Yooga Monitor] Pedidos da rota usados no link', idsNaListaDesteModal.map(numero => ({
+                    numero,
+                    nome: memoriaPedidosGeral[numero]?.nome || ''
+                })));
             }
         }
 
@@ -937,6 +1117,10 @@
                     <div style="font-size:16px; font-weight:bold;">ROTA ${letraNoModal}</div>
                     <div style="display:inline-flex; align-items:center; gap:6px; margin-top:12px; max-width:90%;">
                         <div onclick="window.fazerCliqueYooga('ABRIR_LISTA_ENTREGADOR')" style="background: white; padding: 10px 18px; border-radius: 30px; font-size: 14px; cursor: pointer; color: #333; font-weight:bold; border: 2px solid #ddd; max-width:260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">👤 <strong>${entregadorAtual}</strong> ▾</div>
+                        <label title="Enviar automaticamente ao despachar" style="display:inline-flex; align-items:center; gap:4px; color:#fff; font-size:18px; cursor:pointer;">
+                            <input class="toggle-envio-automatico-entregador" data-entregador="${escaparHTML(entregadorAtual)}" type="checkbox" ${entregadorTemEnvioAutomatico(entregadorAtual) ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer;">
+                            ⚡
+                        </label>
                         <button class="btn-editar-telefone-entregador" data-entregador="${escaparHTML(entregadorAtual)}" title="Editar telefone do entregador" style="background:#fff; border:2px solid #ddd; border-radius:50%; width:34px; height:34px; cursor:pointer; font-size:17px;">✎</button>
                     </div>
                 </div>`;
@@ -968,7 +1152,7 @@
                 </div>`;
             });
             html += `</div><div style="display: flex; gap: 8px; padding: 12px; background: #fafafa; border-top: 1px solid #eee; justify-content: flex-end;">`;
-            html += `<button class="btn-enviar-mensagem-entregador" data-rota="${escaparHTML(letraNoModal)}" data-entregador="${escaparHTML(entregadorAtual)}" title="Enviar rota ao entregador" style="background:#25d366; color:#fff; border:none; padding:10px; border-radius:10px; font-size:18px; cursor:pointer;">💬</button>`;
+            if (!entregadorTemEnvioAutomatico(entregadorAtual)) html += `<button class="btn-enviar-mensagem-entregador" data-rota="${escaparHTML(letraNoModal)}" data-entregador="${escaparHTML(entregadorAtual)}" title="Enviar rota ao entregador pelo Node.js" style="background:#25d366; color:#fff; border:none; padding:10px; border-radius:10px; font-size:18px; cursor:pointer;">💬</button>`;
             if (document.querySelector('button[yooga-tooltip="Imprimir"]')) html += `<button onclick="fazerCliqueYooga('IMPRIMIR')" style="background:#fff; border:1px solid #ccc; padding:10px; border-radius:10px; font-size:18px;">🖨️</button>`;
             if (document.querySelector('button[yooga-tooltip="Copiar link"]')) html += `<button onclick="fazerCliqueYooga('LINK')" style="background:#fff; border:1px solid #ccc; padding:10px; border-radius:10px; font-size:18px;">🔗</button>`;
             if (document.querySelector('.finalizar')) html += `<button onclick="fazerCliqueYooga('FINALIZAR')" style="background:#f44336; color:white; border:none; padding:12px 15px; border-radius:10px; font-size:12px; font-weight:900;">FINALIZAR</button>`;
@@ -1027,6 +1211,12 @@
             botao.onclick = (evento) => {
                 evento.stopPropagation();
                 window.editarTelefoneEntregador(botao.dataset.entregador);
+            };
+        });
+        listaDiv.querySelectorAll('.toggle-envio-automatico-entregador').forEach(controle => {
+            controle.onchange = evento => {
+                evento.stopPropagation();
+                alternarEnvioAutomaticoEntregador(controle.dataset.entregador, controle.checked);
             };
         });
         listaDiv.querySelectorAll('.btn-enviar-mensagem-entregador').forEach(botao => {
@@ -1140,6 +1330,75 @@
 
     window.fecharModalCriarRota = function() { const m = document.getElementById('modal-criar-rota'); if (m) m.remove(); };
 
+    function obterCoordenadasPedido(numero) {
+        const dados = dadosPedidosAPI[String(numero)] || {};
+        const latitude = Number(dados.latitude);
+        const longitude = Number(dados.longitude);
+        return Number.isFinite(latitude) && Number.isFinite(longitude)
+            ? { latitude, longitude }
+            : null;
+    }
+
+    function calcularDistanciaEntrePontos(primeiro, segundo) {
+        const raioTerraKm = 6371;
+        const latitude1 = primeiro.latitude * Math.PI / 180;
+        const latitude2 = segundo.latitude * Math.PI / 180;
+        const diferencaLatitude = (segundo.latitude - primeiro.latitude) * Math.PI / 180;
+        const diferencaLongitude = (segundo.longitude - primeiro.longitude) * Math.PI / 180;
+        const a = Math.sin(diferencaLatitude / 2) ** 2 +
+            Math.cos(latitude1) * Math.cos(latitude2) * Math.sin(diferencaLongitude / 2) ** 2;
+        return 2 * raioTerraKm * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function ordenarPedidosPorProximidade(pedidos) {
+        ultimaRotaFoiInvertida = false;
+        const pedidosComLocalizacao = pedidos.filter(pedido => pedido.localizacao);
+        const pedidosSemLocalizacao = pedidos.filter(pedido => !pedido.localizacao);
+        if (pedidosComLocalizacao.length < 2) return pedidos;
+
+        const montarRota = pedidoInicial => {
+            const rota = pedidoInicial ? [pedidoInicial] : [];
+            let pontoAtual = pedidoInicial?.localizacao || LOCALIZACAO_LOJA;
+            let restantes = pedidosComLocalizacao.filter(pedido => pedido !== pedidoInicial);
+
+            while (restantes.length) {
+                let indiceMaisProximo = 0;
+                let menorDistancia = calcularDistanciaEntrePontos(pontoAtual, restantes[0].localizacao);
+
+                restantes.forEach((pedido, indice) => {
+                    const distancia = calcularDistanciaEntrePontos(pontoAtual, pedido.localizacao);
+                    if (distancia < menorDistancia) {
+                        menorDistancia = distancia;
+                        indiceMaisProximo = indice;
+                    }
+                });
+
+                const proximoPedido = restantes.splice(indiceMaisProximo, 1)[0];
+                rota.push(proximoPedido);
+                pontoAtual = proximoPedido.localizacao;
+            }
+
+            return rota;
+        };
+
+        let rotaOrdenada = montarRota(null);
+
+        const ultimoPedido = rotaOrdenada[rotaOrdenada.length - 1];
+        const atrasoUltimo = Number(memoriaPedidosGeral[ultimoPedido.num]?.minutosNum);
+        const atrasosDosDemais = rotaOrdenada
+            .slice(0, -1)
+            .map(pedido => Number(memoriaPedidosGeral[pedido.num]?.minutosNum))
+            .filter(Number.isFinite);
+
+        if (Number.isFinite(atrasoUltimo) && atrasosDosDemais.length &&
+            atrasosDosDemais.every(atraso => atrasoUltimo > atraso)) {
+            rotaOrdenada = montarRota(ultimoPedido);
+            ultimaRotaFoiInvertida = true;
+        }
+
+        return [...rotaOrdenada, ...pedidosSemLocalizacao];
+    }
+
     window.criarRotaAutomatica = async function(qtd) {
         const sleep = (ms) => new Promise(r=>setTimeout(r,ms));
         let selecionados = 0;
@@ -1147,10 +1406,13 @@
         const idsEmRotas = () => { const s = new Set(); Object.values(bancoDeDadosRotas).forEach(arr => (arr||[]).forEach(id => s.add(id))); return s; };
 
         const pedidosEls = Array.from(document.querySelectorAll('delivery-order'))
-            .map(el => ({ el, num: (el.querySelector('.left-side p')?.innerText||'').replace('#','').trim() }))
+            .map(el => {
+                const num = (el.querySelector('.left-side p')?.innerText || '').replace('#', '').trim();
+                return { el, num, localizacao: obterCoordenadasPedido(num) };
+            })
             .filter(x => x.num && !idsEmRotas().has(x.num) && !pedidosFinalizadosInterno.has(x.num));
 
-        pedidosEls.sort((a,b) => (parseInt(a.num,10)||0) - (parseInt(b.num,10)||0));
+        pedidosEls.splice(0, pedidosEls.length, ...ordenarPedidosPorProximidade(pedidosEls));
 
         for (const p of pedidosEls) {
             if (selecionados >= qtd) break;

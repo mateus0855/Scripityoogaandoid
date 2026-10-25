@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V130
-// @version      130
-// @description  Correção na validação
+// @name         Confirmar Pedido Yooga - V131
+// @version      131
+// @description  Correção na validação 99 ifood e yooga
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*
@@ -253,7 +253,22 @@
         if (!is99Host) return;
         const cod = new URLSearchParams(window.location.search).get('cod');
         const input = document.querySelector("#app > div > div.page-container > div.input-section > div > div:nth-child(1) > input[type=text]");
+
+        const clicarUmaVez = (seletor) => {
+            const b = document.querySelector(seletor);
+            if (b && !b.disabled && !b.dataset.autoClicado) {
+                b.dataset.autoClicado = "true";
+                b.click();
+            }
+        };
+        clicarUmaVez("#app > div > div.confirmation-container > button");
+        if (document.querySelector("#app > div > div.confirmation-container > button")) sessionStorage.removeItem('yoogaCod99');
+        if (sessionStorage.getItem('yoogaCod99')) {
+            clicarUmaVez("#app > div > div.page-container > div.action-button > button");
+        }
+
         if (!cod || !input) return;
+        sessionStorage.setItem('yoogaCod99', '1');
 
         window.history.replaceState({}, document.title, window.location.pathname);
         input.focus();

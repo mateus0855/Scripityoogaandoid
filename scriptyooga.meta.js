@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V127
-// @version      127
-// @description  Correção na validação do prompt: cancelar ação não exibe mais mensagem de senha incorreta.
+// @name         Confirmar Pedido Yooga - V128
+// @version      128
+// @description  Correção
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*

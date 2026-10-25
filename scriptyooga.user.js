@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V103
-// @version      103
-// @description  Correção na validação do prompt
+// @name         Confirmar Pedido Yooga - V104
+// @version      104
+// @description  Correção na validação do prompt: cancelar ação não exibe mais mensagem de senha incorreta.
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*
@@ -213,8 +213,12 @@
 
             const imgEl = obterImgPedidoAtual(num);
             const src = imgEl ? (imgEl.getAttribute('src') || "") : "";
+            const cls = imgEl ? imgEl.classList : null;
             let tipo;
-            if (src.includes("/assets/imgs/99-logo.png")) tipo = "99food";
+            if (cls && cls.contains("didi")) tipo = "99food";
+            else if (cls && cls.contains("ifood")) tipo = "ifood";
+            else if (cls && cls.contains("yooga")) tipo = "yooga";
+            else if (src.includes("/assets/imgs/99-logo.png")) tipo = "99food";
             else if (src.includes("/assets/ifood-logo.png")) tipo = "ifood";
             else if (src.includes("/assets/imgs/logo_order.png")) tipo = "yooga";
             else tipo = num.startsWith("0800") ? "ifood" : "yooga";

@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V129
-// @version      129
+// @name         Confirmar Pedido Yooga - V130
+// @version      130
 // @description  Correção na validação
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
@@ -192,12 +192,21 @@
 
     // Descobre a plataforma pela classe da img do card do pedido selecionado
     function detectarPlataforma(num) {
-        const img = document.querySelector('app-ver-pedido-component ion-row.dados-cliente ion-col:nth-child(1) > p:nth-child(1) > img');
-        const src = img ? (img.getAttribute('src') || "") : "";
-        if (src.includes('/assets/imgs/99-logo.png')) return 'didi';
-        if (src.includes('/assets/ifood-logo.png')) return 'ifood';
-        if (!img && num.startsWith("0800")) return 'ifood';
-        return 'yooga';
+        const origem = document.querySelector("app-ver-pedido-component ion-row.dados-cliente ion-col:nth-child(1) > div:nth-child(2) > span:nth-child(1)");
+        const textoOrigem = origem ? origem.innerText.toLowerCase() : "";
+        if (textoOrigem.includes('ifood')) return 'ifood';
+        if (textoOrigem.includes('99food') || textoOrigem.includes('99 food')) return 'didi';
+        if (origem) return 'yooga';
+
+        const cards = Array.from(document.querySelectorAll('#shepherd-delivery-mocked-order delivery-order, delivery-order'));
+        const card = cards.find(c => c.matches('.selected, .active, .selecionado') || c.querySelector('.selected, .active, [class*="selected"]'));
+        const img = card && card.querySelector('div > div.top > div.left-side > img');
+        if (img) {
+            if (img.classList.contains('didi')) return 'didi';
+            if (img.classList.contains('ifood')) return 'ifood';
+            if (img.classList.contains('yooga')) return 'yooga';
+        }
+        return num.startsWith("0800") ? 'ifood' : 'yooga';
     }
 
     function clicarQuandoExistir(seletor, tentativas) {

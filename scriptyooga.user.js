@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V99
-// @version      99
+// @name         Confirmar Pedido Yooga - V100
+// @version      100
 // @description  Correção na validação do prompt: cancelar ação não exibe mais mensagem de senha incorreta.
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
@@ -184,17 +184,34 @@
     document.addEventListener('change', interceptarSelecaoEntregador, true);
     document.addEventListener('input', interceptarSelecaoEntregador, true);
 
+    // Localiza o card (delivery-order:nth-child(x)) do pedido aberto: primeiro o card marcado como selecionado, depois o que contém o telefone
+    function obterImgPedidoAtual(num) {
+        const cards = Array.from(document.querySelectorAll("#shepherd-delivery-mocked-order > delivery-order"));
+        const imgDe = c => c.querySelector("div > div.top > div.left-side > img");
+        const marcado = cards.find(c => /select|active|ativ/i.test(c.className) || c.querySelector("[class*='select'], [class*='active']"));
+        if (marcado && imgDe(marcado)) return imgDe(marcado);
+        if (num) {
+            const ult = num.slice(-8);
+            const porTel = cards.find(c => c.innerText.replace(/\D/g, '').includes(ult));
+            if (porTel && imgDe(porTel)) return imgDe(porTel);
+        }
+        return null;
+    }
+
     // --- 2. BOTÃO IFOOD NO DELIVERY ---
     function executarBotaoIfood() {
         if (!isYoogaHost || !window.location.href.includes("/delivery")) return;
 
+        let tel = document.querySelector(".cliente-telefone") || document.querySelector(".customer-phone") || document.querySelector(".text-bold.m-0");
+        const num = tel ? tel.innerText.replace(/\D/g, '') : "";
+        const existente = document.getElementById("btn-confirmar-yooga");
+        if (existente && existente.dataset.num !== num) existente.remove();
+
         if (!document.getElementById("btn-confirmar-yooga")) {
-            let tel = document.querySelector(".cliente-telefone") || document.querySelector(".customer-phone") || document.querySelector(".text-bold.m-0");
-            const num = tel ? tel.innerText.replace(/\D/g, '') : "";
             const ref = document.querySelector("p.entregar-em");
             if (!ref) return;
 
-            const imgEl = document.querySelector(SELETOR_IMG_99);
+            const imgEl = obterImgPedidoAtual(num);
             const src = imgEl ? (imgEl.getAttribute('src') || "") : "";
             let tipo;
             if (src.includes("/assets/imgs/99-logo.png")) tipo = "99food";
@@ -210,6 +227,7 @@
 
             const btn = document.createElement("div");
             btn.id = "btn-confirmar-yooga";
+            btn.dataset.num = num;
             btn.innerText = cfg.texto;
             btn.style = `background-color: ${cfg.bg}; color: ${cfg.cor}; padding: 10px 18px; border-radius: 8px; text-align: center; cursor: pointer; font-weight: bold; font-size: 14px; display: inline-block; border: 1px solid ${cfg.borda}; margin-bottom: 10px; width: 100%; box-sizing: border-box;`;
             btn.onclick = () => {

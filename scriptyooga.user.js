@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V121
-// @version      121
-// @description  Correção na validação do 
+// @name         Confirmar Pedido Yooga - V121.1
+// @version      121.1
+// @description  Correção na validação 
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*
@@ -10,6 +10,7 @@
 // @downloadURL  https://raw.githubusercontent.com/mateus0855/Scripityoogaandoid/main/scriptyooga.user.js
 // @grant        none
 // ==/UserScript==
+
 
 (function() {
     'use strict';

@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V122
-// @version      122
-// @description  Correção na validação 
-// @author       yooga
+// @name         Confirmar Pedido Yooga - V123
+// @version      123
+// @description  Correção na validação do prompt: cancelar ação não exibe mais mensagem de senha incorreta.
+// @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*
 // @match        *://food-b-h5.99app.com/*
@@ -10,7 +10,6 @@
 // @downloadURL  https://raw.githubusercontent.com/mateus0855/Scripityoogaandoid/main/scriptyooga.user.js
 // @grant        none
 // ==/UserScript==
-
 
 (function() {
     'use strict';
@@ -185,44 +184,20 @@
     document.addEventListener('change', interceptarSelecaoEntregador, true);
     document.addEventListener('input', interceptarSelecaoEntregador, true);
 
-    // Localiza o card (delivery-order:nth-child(x)) do pedido aberto: primeiro o card marcado como selecionado, depois o que contém o telefone
-    function obterImgPedidoAtual(num) {
-        const cards = Array.from(document.querySelectorAll("#shepherd-delivery-mocked-order > delivery-order"));
-        const imgDe = c => c.querySelector("div > div.top > div.left-side > img");
-        const marcado = cards.find(c => /select|active|ativ/i.test(c.className) || c.querySelector("[class*='select'], [class*='active']"));
-        if (marcado && imgDe(marcado)) return imgDe(marcado);
-        if (num) {
-            const ult = num.slice(-8);
-            const porTel = cards.find(c => c.innerText.replace(/\D/g, '').includes(ult));
-            if (porTel && imgDe(porTel)) return imgDe(porTel);
-        }
-        return null;
-    }
-
     // --- 2. BOTÃO IFOOD NO DELIVERY ---
     function executarBotaoIfood() {
         if (!isYoogaHost || !window.location.href.includes("/delivery")) return;
 
-        let tel = document.querySelector(".cliente-telefone") || document.querySelector(".customer-phone") || document.querySelector(".text-bold.m-0");
-        const num = tel ? tel.innerText.replace(/\D/g, '') : "";
-        const existente = document.getElementById("btn-confirmar-yooga");
-        if (existente && existente.dataset.num !== num) existente.remove();
-
         if (!document.getElementById("btn-confirmar-yooga")) {
+            let tel = document.querySelector(".cliente-telefone") || document.querySelector(".customer-phone") || document.querySelector(".text-bold.m-0");
+            const num = tel ? tel.innerText.replace(/\D/g, '') : "";
             const ref = document.querySelector("p.entregar-em");
             if (!ref) return;
 
-            const imgEl = obterImgPedidoAtual(num);
-            const src = imgEl ? (imgEl.getAttribute('src') || "") : "";
-            const cls = imgEl ? imgEl.classList : null;
-            let tipo;
-            if (cls && cls.contains("didi")) tipo = "99food";
-            else if (cls && cls.contains("ifood")) tipo = "ifood";
-            else if (cls && cls.contains("yooga")) tipo = "yooga";
-            else if (src.includes("/assets/imgs/99-logo.png")) tipo = "99food";
-            else if (src.includes("/assets/ifood-logo.png")) tipo = "ifood";
-            else if (src.includes("/assets/imgs/logo_order.png")) tipo = "yooga";
-            else tipo = num.startsWith("0800") ? "ifood" : "yooga";
+            const is99 = !!document.querySelector(SELETOR_IMG_99) && SELETOR_IMG_99_OK();
+            let tipo = "yooga";
+            if (num.startsWith("0800")) tipo = "ifood";
+            else if (is99) tipo = "99food";
 
             const cfg = {
                 ifood: { texto: "Confirmar Ifood", bg: "#e53935", cor: "#fff", borda: "#b71c1c" },
@@ -232,22 +207,25 @@
 
             const btn = document.createElement("div");
             btn.id = "btn-confirmar-yooga";
-            btn.dataset.num = num;
             btn.innerText = cfg.texto;
             btn.style = `background-color: ${cfg.bg}; color: ${cfg.cor}; padding: 10px 18px; border-radius: 8px; text-align: center; cursor: pointer; font-weight: bold; font-size: 14px; display: inline-block; border: 1px solid ${cfg.borda}; margin-bottom: 10px; width: 100%; box-sizing: border-box;`;
             btn.onclick = () => {
                 if (tipo === "ifood") {
                     window.location.href = "https://confirmacao-entrega-propria.ifood.com.br/numero-pedido?cod=" + num.slice(-8);
                 } else if (tipo === "99food") {
-                    const cod99 = num.slice(-8);
-                    try { navigator.clipboard.writeText(cod99); } catch (e) {}
-                    window.location.href = URL_CONFIRMACAO_99 + "#cod=" + encodeURIComponent(cod99);
+                    try { navigator.clipboard.writeText(num); } catch (e) {}
+                    window.location.href = URL_CONFIRMACAO_99 + "#cod=" + encodeURIComponent(num);
                 } else {
                     confirmarPedidoYooga();
                 }
             };
             ref.insertAdjacentElement('beforebegin', btn);
         }
+    }
+
+    function SELETOR_IMG_99_OK() {
+        const img = document.querySelector(SELETOR_IMG_99);
+        return !!img && (img.getAttribute('src') || "").includes("/assets/imgs/99-logo.png");
     }
 
     // Clica no botão de confirmar do Yooga e depois no botão de finalizar do modal

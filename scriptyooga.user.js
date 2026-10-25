@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V97
-// @version      97
+// @name         Confirmar Pedido Yooga - V98
+// @version      98
 // @description  Correção na validação do prompt: cancelar ação não exibe mais mensagem de senha incorreta.
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
@@ -194,10 +194,13 @@
             const ref = document.querySelector("p.entregar-em");
             if (!ref) return;
 
-            const is99 = !!document.querySelector(SELETOR_IMG_99) && SELETOR_IMG_99_OK();
-            let tipo = "yooga";
-            if (num.startsWith("0800")) tipo = "ifood";
-            else if (is99) tipo = "99food";
+            const imgEl = document.querySelector(SELETOR_IMG_99);
+            const src = imgEl ? (imgEl.getAttribute('src') || "") : "";
+            let tipo;
+            if (src.includes("/assets/imgs/99-logo.png")) tipo = "99food";
+            else if (src.includes("/assets/ifood-logo.png")) tipo = "ifood";
+            else if (src.includes("/assets/imgs/logo_order.png")) tipo = "yooga";
+            else tipo = num.startsWith("0800") ? "ifood" : "yooga";
 
             const cfg = {
                 ifood: { texto: "Confirmar Ifood", bg: "#e53935", cor: "#fff", borda: "#b71c1c" },
@@ -213,19 +216,15 @@
                 if (tipo === "ifood") {
                     window.location.href = "https://confirmacao-entrega-propria.ifood.com.br/numero-pedido?cod=" + num.slice(-8);
                 } else if (tipo === "99food") {
-                    try { navigator.clipboard.writeText(num); } catch (e) {}
-                    window.location.href = URL_CONFIRMACAO_99 + "#cod=" + encodeURIComponent(num);
+                    const cod99 = num.slice(-8);
+                    try { navigator.clipboard.writeText(cod99); } catch (e) {}
+                    window.location.href = URL_CONFIRMACAO_99 + "#cod=" + encodeURIComponent(cod99);
                 } else {
                     confirmarPedidoYooga();
                 }
             };
             ref.insertAdjacentElement('beforebegin', btn);
         }
-    }
-
-    function SELETOR_IMG_99_OK() {
-        const img = document.querySelector(SELETOR_IMG_99);
-        return !!img && (img.getAttribute('src') || "").includes("/assets/imgs/99-logo.png");
     }
 
     // Clica no botão de confirmar do Yooga e depois no botão de finalizar do modal

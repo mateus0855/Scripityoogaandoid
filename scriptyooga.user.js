@@ -1,10 +1,11 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V96
-// @version      96
+// @name         Confirmar Pedido Yooga - V97
+// @version      97
 // @description  Correção na validação do prompt: cancelar ação não exibe mais mensagem de senha incorreta.
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*
+// @match        *://food-b-h5.99app.com/*
 // @updateURL    https://raw.githubusercontent.com/mateus0855/Scripityoogaandoid/main/scriptyooga.meta.js
 // @downloadURL  https://raw.githubusercontent.com/mateus0855/Scripityoogaandoid/main/scriptyooga.user.js
 // @grant        none
@@ -38,6 +39,12 @@
     const SELETOR_INTEGRATION_PILLS = "body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.content > div:nth-child(2) > div.bottom > integration-pills";
     const SELETOR_BOTAO_ACEITAR = "body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.accept";
 
+    const URL_CONFIRMACAO_99 = "https://food-b-h5.99app.com/pt-BR/v2/confirmation-entrega";
+    const SELETOR_IMG_99 = "#shepherd-delivery-mocked-order > delivery-order:nth-child(1) > div > div.top > div.left-side > img";
+    const SELETOR_INPUT_99 = "#app > div > div.page-container > div.input-section > div > div:nth-child(1) > input[type=text]";
+    const SELETOR_YOOGA_CONFIRMAR = "body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.right > app-ver-pedido-component > app-actions-section > ion-footer > div > div.ion-text-right.right-grid > yoo-button.button-emphasis.button-success.button-medium.button-base";
+    const SELETOR_YOOGA_FINALIZAR = "#shepherd-delivery-confirm-finish-order > div.button-group.mt-6 > ion-button.md.button.button-solid.ion-activatable.ion-focusable.hydrated";
+    const is99Host = window.location.hostname === "food-b-h5.99app.com";
     const isYoogaHost = window.location.hostname === "app.yooga.com.br";
     const isIfoodHost = window.location.hostname.includes("ifood.com.br");
 
@@ -184,18 +191,74 @@
         if (!document.getElementById("btn-confirmar-yooga")) {
             let tel = document.querySelector(".cliente-telefone") || document.querySelector(".customer-phone") || document.querySelector(".text-bold.m-0");
             const num = tel ? tel.innerText.replace(/\D/g, '') : "";
-            if (num.startsWith("0800")) {
-                const ref = document.querySelector("p.entregar-em");
-                if (ref) {
-                    const btn = document.createElement("div");
-                    btn.id = "btn-confirmar-yooga";
-                    btn.innerText = "CONFIRMAR IFOOD";
-                    btn.style = "background-color: #add8e6; color: #000; padding: 10px 18px; border-radius: 8px; text-align: center; cursor: pointer; font-weight: bold; font-size: 14px; display: inline-block; border: 1px solid #90cbdc; margin-bottom: 10px; width: 100%; box-sizing: border-box;";
-                    btn.onclick = () => { window.location.href = "https://confirmacao-entrega-propria.ifood.com.br/numero-pedido?cod=" + num.slice(-8); };
-                    ref.insertAdjacentElement('beforebegin', btn);
+            const ref = document.querySelector("p.entregar-em");
+            if (!ref) return;
+
+            const is99 = !!document.querySelector(SELETOR_IMG_99) && SELETOR_IMG_99_OK();
+            let tipo = "yooga";
+            if (num.startsWith("0800")) tipo = "ifood";
+            else if (is99) tipo = "99food";
+
+            const cfg = {
+                ifood: { texto: "Confirmar Ifood", bg: "#e53935", cor: "#fff", borda: "#b71c1c" },
+                "99food": { texto: "Confirmar 99Food", bg: "#ffd600", cor: "#000", borda: "#c7a500" },
+                yooga: { texto: "Confirmar Yooga", bg: "#1e88e5", cor: "#fff", borda: "#1565c0" }
+            }[tipo];
+
+            const btn = document.createElement("div");
+            btn.id = "btn-confirmar-yooga";
+            btn.innerText = cfg.texto;
+            btn.style = `background-color: ${cfg.bg}; color: ${cfg.cor}; padding: 10px 18px; border-radius: 8px; text-align: center; cursor: pointer; font-weight: bold; font-size: 14px; display: inline-block; border: 1px solid ${cfg.borda}; margin-bottom: 10px; width: 100%; box-sizing: border-box;`;
+            btn.onclick = () => {
+                if (tipo === "ifood") {
+                    window.location.href = "https://confirmacao-entrega-propria.ifood.com.br/numero-pedido?cod=" + num.slice(-8);
+                } else if (tipo === "99food") {
+                    try { navigator.clipboard.writeText(num); } catch (e) {}
+                    window.location.href = URL_CONFIRMACAO_99 + "#cod=" + encodeURIComponent(num);
+                } else {
+                    confirmarPedidoYooga();
                 }
-            }
+            };
+            ref.insertAdjacentElement('beforebegin', btn);
         }
+    }
+
+    function SELETOR_IMG_99_OK() {
+        const img = document.querySelector(SELETOR_IMG_99);
+        return !!img && (img.getAttribute('src') || "").includes("/assets/imgs/99-logo.png");
+    }
+
+    // Clica no botão de confirmar do Yooga e depois no botão de finalizar do modal
+    function confirmarPedidoYooga() {
+        const b1 = document.querySelector(SELETOR_YOOGA_CONFIRMAR);
+        if (!b1) return;
+        b1.click();
+        let tentativas = 0;
+        const t = setInterval(() => {
+            const b2 = document.querySelector(SELETOR_YOOGA_FINALIZAR);
+            if (b2) {
+                clearInterval(t);
+                b2.click();
+            } else if (++tentativas > 40) {
+                clearInterval(t);
+            }
+        }, 250);
+    }
+
+    // --- LÓGICA NA 99FOOD: cola o localizador no input ---
+    function executarAutomacao99() {
+        if (!is99Host) return;
+        const m = window.location.hash.match(/cod=([^&]+)/);
+        if (!m) return;
+        const input = document.querySelector(SELETOR_INPUT_99);
+        if (!input) return;
+        const cod = decodeURIComponent(m[1]);
+        window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+        input.focus();
+        setter.call(input, cod);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
     // --- 3. LÓGICA NO IFOOD ---
@@ -382,6 +445,10 @@
 
         if (isIfoodHost) {
             agendarLoop(executarAutomacaoIfood, 1000);
+        }
+
+        if (is99Host) {
+            agendarLoop(executarAutomacao99, 500);
         }
     }
 

@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V119
-// @version      119
+// @name         Confirmar Pedido Yooga - V120
+// @version      120
 // @description  Correção na validação do prompt
 // @author       Mateus
 // @match        *://app.yooga.com.br/*

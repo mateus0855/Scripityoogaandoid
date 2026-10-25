@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V124
-// @version      124
-// @description  Correção na validação do prompt
+// @name         Confirmar Pedido Yooga - V125
+// @version      125
+// @description  Confirmaçoes de codigo
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*
@@ -39,14 +39,9 @@
     const SELETOR_INTEGRATION_PILLS = "body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.content > div:nth-child(2) > div.bottom > integration-pills";
     const SELETOR_BOTAO_ACEITAR = "body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.accept";
 
-    const URL_CONFIRMACAO_99 = "https://food-b-h5.99app.com/pt-BR/v2/confirmation-entrega";
-    const SELETOR_IMG_99 = "#shepherd-delivery-mocked-order > delivery-order:nth-child(1) > div > div.top > div.left-side > img";
-    const SELETOR_INPUT_99 = "#app > div > div.page-container > div.input-section > div > div:nth-child(1) > input[type=text]";
-    const SELETOR_YOOGA_CONFIRMAR = "body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.right > app-ver-pedido-component > app-actions-section > ion-footer > div > div.ion-text-right.right-grid > yoo-button.button-emphasis.button-success.button-medium.button-base";
-    const SELETOR_YOOGA_FINALIZAR = "#shepherd-delivery-confirm-finish-order > div.button-group.mt-6 > ion-button.md.button.button-solid.ion-activatable.ion-focusable.hydrated";
-    const is99Host = window.location.hostname === "food-b-h5.99app.com";
     const isYoogaHost = window.location.hostname === "app.yooga.com.br";
     const isIfoodHost = window.location.hostname.includes("ifood.com.br");
+    const is99Host = window.location.hostname === "food-b-h5.99app.com";
 
     const ESTILO_FIX_ROLAGEM = `
         body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.content {
@@ -185,77 +180,78 @@
     document.addEventListener('input', interceptarSelecaoEntregador, true);
 
     // --- 2. BOTÃO IFOOD NO DELIVERY ---
+    const SELETOR_YOOGA_CONFIRMAR_1 = "body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.right > app-ver-pedido-component > app-actions-section > ion-footer > div > div.ion-text-right.right-grid > yoo-button.button-emphasis.button-success.button-medium.button-base";
+    const SELETOR_YOOGA_CONFIRMAR_2 = "#shepherd-delivery-confirm-finish-order > div.button-group.mt-6 > ion-button.md.button.button-solid.ion-activatable.ion-focusable.hydrated";
+    const URL_99 = "https://food-b-h5.99app.com/pt-BR/v2/confirmation-entrega";
+
+    const CONFIG_PLATAFORMAS = {
+        ifood: { texto: "Confirmar Ifood", bg: "#e53935", cor: "#fff" },
+        didi: { texto: "Confirmar 99Food", bg: "#ffc700", cor: "#000" },
+        yooga: { texto: "Confirmar Yooga", bg: "#1e63e9", cor: "#fff" }
+    };
+
+    // Descobre a plataforma pela classe da img do card do pedido selecionado
+    function detectarPlataforma(num) {
+        const cards = Array.from(document.querySelectorAll('#shepherd-delivery-mocked-order delivery-order, delivery-order'));
+        const card = cards.find(c => c.matches('.selected, .active, .selecionado') || c.querySelector('.selected, .active, [class*="selected"]'));
+        const img = card && card.querySelector('div > div.top > div.left-side > img');
+        if (img) {
+            if (img.classList.contains('didi')) return 'didi';
+            if (img.classList.contains('ifood')) return 'ifood';
+            if (img.classList.contains('yooga')) return 'yooga';
+        }
+        return num.startsWith("0800") ? 'ifood' : 'yooga';
+    }
+
+    function clicarQuandoExistir(seletor, tentativas) {
+        const el = document.querySelector(seletor);
+        if (el) { el.click(); return; }
+        if (tentativas > 0) setTimeout(() => clicarQuandoExistir(seletor, tentativas - 1), 300);
+    }
+
     function executarBotaoIfood() {
         if (!isYoogaHost || !window.location.href.includes("/delivery")) return;
 
-        if (!document.getElementById("btn-confirmar-yooga")) {
-            let tel = document.querySelector(".cliente-telefone") || document.querySelector(".customer-phone") || document.querySelector(".text-bold.m-0");
-            const num = tel ? tel.innerText.replace(/\D/g, '') : "";
-            const ref = document.querySelector("p.entregar-em");
-            if (!ref) return;
+        const tel = document.querySelector(".cliente-telefone") || document.querySelector(".customer-phone") || document.querySelector(".text-bold.m-0");
+        const num = tel ? tel.innerText.replace(/\D/g, '') : "";
+        const ref = document.querySelector("p.entregar-em");
+        const existente = document.getElementById("btn-confirmar-yooga");
+        if (!ref) return;
 
-            const is99 = !!document.querySelector(SELETOR_IMG_99) && SELETOR_IMG_99_OK();
-            let tipo = "yooga";
-            if (num.startsWith("0800")) tipo = "ifood";
-            else if (is99) tipo = "99food";
+        const plataforma = detectarPlataforma(num);
+        if (existente && existente.dataset.plataforma === plataforma && existente.dataset.num === num) return;
+        if (existente) existente.remove();
 
-            const cfg = {
-                ifood: { texto: "Confirmar Ifood", bg: "#e53935", cor: "#fff", borda: "#b71c1c" },
-                "99food": { texto: "Confirmar 99Food", bg: "#ffd600", cor: "#000", borda: "#c7a500" },
-                yooga: { texto: "Confirmar Yooga", bg: "#1e88e5", cor: "#fff", borda: "#1565c0" }
-            }[tipo];
-
-            const btn = document.createElement("div");
-            btn.id = "btn-confirmar-yooga";
-            btn.innerText = cfg.texto;
-            btn.style = `background-color: ${cfg.bg}; color: ${cfg.cor}; padding: 10px 18px; border-radius: 8px; text-align: center; cursor: pointer; font-weight: bold; font-size: 14px; display: inline-block; border: 1px solid ${cfg.borda}; margin-bottom: 10px; width: 100%; box-sizing: border-box;`;
-            btn.onclick = () => {
-                if (tipo === "ifood") {
-                    window.location.href = "https://confirmacao-entrega-propria.ifood.com.br/numero-pedido?cod=" + num.slice(-8);
-                } else if (tipo === "99food") {
-                    try { navigator.clipboard.writeText(num); } catch (e) {}
-                    window.location.href = URL_CONFIRMACAO_99 + "#cod=" + encodeURIComponent(num);
-                } else {
-                    confirmarPedidoYooga();
-                }
-            };
-            ref.insertAdjacentElement('beforebegin', btn);
-        }
-    }
-
-    function SELETOR_IMG_99_OK() {
-        const img = document.querySelector(SELETOR_IMG_99);
-        return !!img && (img.getAttribute('src') || "").includes("/assets/imgs/99-logo.png");
-    }
-
-    // Clica no botão de confirmar do Yooga e depois no botão de finalizar do modal
-    function confirmarPedidoYooga() {
-        const b1 = document.querySelector(SELETOR_YOOGA_CONFIRMAR);
-        if (!b1) return;
-        b1.click();
-        let tentativas = 0;
-        const t = setInterval(() => {
-            const b2 = document.querySelector(SELETOR_YOOGA_FINALIZAR);
-            if (b2) {
-                clearInterval(t);
-                b2.click();
-            } else if (++tentativas > 40) {
-                clearInterval(t);
+        const cfg = CONFIG_PLATAFORMAS[plataforma];
+        const btn = document.createElement("div");
+        btn.id = "btn-confirmar-yooga";
+        btn.dataset.plataforma = plataforma;
+        btn.dataset.num = num;
+        btn.innerText = cfg.texto;
+        btn.style = `background-color: ${cfg.bg}; color: ${cfg.cor}; padding: 10px 18px; border-radius: 8px; text-align: center; cursor: pointer; font-weight: bold; font-size: 14px; display: inline-block; margin-bottom: 10px; width: 100%; box-sizing: border-box;`;
+        btn.onclick = () => {
+            if (plataforma === 'ifood') {
+                window.location.href = "https://confirmacao-entrega-propria.ifood.com.br/numero-pedido?cod=" + num.slice(-8);
+            } else if (plataforma === 'didi') {
+                window.location.href = URL_99 + "?cod=" + num.slice(-8);
+            } else {
+                clicarQuandoExistir(SELETOR_YOOGA_CONFIRMAR_1, 10);
+                setTimeout(() => clicarQuandoExistir(SELETOR_YOOGA_CONFIRMAR_2, 15), 500);
             }
-        }, 250);
+        };
+        ref.insertAdjacentElement('beforebegin', btn);
     }
 
-    // --- LÓGICA NA 99FOOD: cola o localizador no input ---
+    // --- 3b. LÓGICA NA 99FOOD ---
     function executarAutomacao99() {
         if (!is99Host) return;
-        const m = window.location.hash.match(/cod=([^&]+)/);
-        if (!m) return;
-        const input = document.querySelector(SELETOR_INPUT_99);
-        if (!input) return;
-        const cod = decodeURIComponent(m[1]);
-        window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
-        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+        const cod = new URLSearchParams(window.location.search).get('cod');
+        const input = document.querySelector("#app > div > div.page-container > div.input-section > div > div:nth-child(1) > input[type=text]");
+        if (!cod || !input) return;
+
+        window.history.replaceState({}, document.title, window.location.pathname);
         input.focus();
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
         setter.call(input, cod);
         input.dispatchEvent(new Event('input', { bubbles: true }));
         input.dispatchEvent(new Event('change', { bubbles: true }));

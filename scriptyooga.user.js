@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V116
-// @version      116
-// @description  Correção na validação do prompt
+// @name         Confirmar Pedido Yooga - V117
+// @version      117
+// @description  Correção na validação do prompt: cancelar
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*
@@ -40,6 +40,7 @@
     const SELETOR_BOTAO_ACEITAR = "body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.left > div.accept";
 
     const URL_CONFIRMACAO_99 = "https://food-b-h5.99app.com/pt-BR/v2/confirmation-entrega";
+    const SELETOR_IMG_99 = "#shepherd-delivery-mocked-order > delivery-order:nth-child(1) > div > div.top > div.left-side > img";
     const SELETOR_INPUT_99 = "#app > div > div.page-container > div.input-section > div > div:nth-child(1) > input[type=text]";
     const SELETOR_YOOGA_CONFIRMAR = "body > app-root > ion-app > ion-router-outlet > app-navigation > ion-tabs > div > ion-router-outlet > order-manager > order-manager-component > div > div.right > app-ver-pedido-component > app-actions-section > ion-footer > div > div.ion-text-right.right-grid > yoo-button.button-emphasis.button-success.button-medium.button-base";
     const SELETOR_YOOGA_FINALIZAR = "#shepherd-delivery-confirm-finish-order > div.button-group.mt-6 > ion-button.md.button.button-solid.ion-activatable.ion-focusable.hydrated";
@@ -183,13 +184,18 @@
     document.addEventListener('change', interceptarSelecaoEntregador, true);
     document.addEventListener('input', interceptarSelecaoEntregador, true);
 
-    // Localiza o card do pedido aberto pelo telefone e devolve a img do pedido
+    // Localiza o card (delivery-order:nth-child(x)) do pedido aberto: primeiro o card marcado como selecionado, depois o que contém o telefone
     function obterImgPedidoAtual(num) {
-        if (!num) return null;
-        const ult = num.slice(-8);
         const cards = Array.from(document.querySelectorAll("#shepherd-delivery-mocked-order > delivery-order"));
-        const card = cards.find(c => c.innerText.replace(/\D/g, '').includes(ult));
-        return card ? card.querySelector("div > div.top > div.left-side > img") : null;
+        const imgDe = c => c.querySelector("div > div.top > div.left-side > img");
+        const marcado = cards.find(c => /select|active|ativ/i.test(c.className) || c.querySelector("[class*='select'], [class*='active']"));
+        if (marcado && imgDe(marcado)) return imgDe(marcado);
+        if (num) {
+            const ult = num.slice(-8);
+            const porTel = cards.find(c => c.innerText.replace(/\D/g, '').includes(ult));
+            if (porTel && imgDe(porTel)) return imgDe(porTel);
+        }
+        return null;
     }
 
     // --- 2. BOTÃO IFOOD NO DELIVERY ---
@@ -202,15 +208,19 @@
         if (existente && existente.dataset.num !== num) existente.remove();
 
         if (!document.getElementById("btn-confirmar-yooga")) {
-            const ref = document.querySelector("p.entregar-em") || document.querySelector("app-ver-pedido-component");
+            const ref = document.querySelector("p.entregar-em");
             if (!ref) return;
-            const posicao = ref.matches("p.entregar-em") ? 'beforebegin' : 'afterbegin';
+
             const imgEl = obterImgPedidoAtual(num);
-            const classes = imgEl ? imgEl.className : "";
+            const src = imgEl ? (imgEl.getAttribute('src') || "") : "";
+            const cls = imgEl ? imgEl.classList : null;
             let tipo;
-            if (/\bdidi\b/.test(classes)) tipo = "99food";
-            else if (/\bifood\b/.test(classes)) tipo = "ifood";
-            else if (/\byooga\b/.test(classes)) tipo = "yooga";
+            if (cls && cls.contains("didi")) tipo = "99food";
+            else if (cls && cls.contains("ifood")) tipo = "ifood";
+            else if (cls && cls.contains("yooga")) tipo = "yooga";
+            else if (src.includes("/assets/imgs/99-logo.png")) tipo = "99food";
+            else if (src.includes("/assets/ifood-logo.png")) tipo = "ifood";
+            else if (src.includes("/assets/imgs/logo_order.png")) tipo = "yooga";
             else tipo = num.startsWith("0800") ? "ifood" : "yooga";
 
             const cfg = {
@@ -235,8 +245,7 @@
                     confirmarPedidoYooga();
                 }
             };
-            ref.insertAdjacentElement(posicao, btn);
-            console.log("[Confirmar] botão criado:", tipo, "| num:", num, "| img class:", classes);
+            ref.insertAdjacentElement('beforebegin', btn);
         }
     }
 

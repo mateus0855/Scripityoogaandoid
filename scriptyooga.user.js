@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V132
-// @version      132
-// @description  Correção na validação
+// @name         Confirmar Pedido Yooga - V133
+// @version      133
+// @description  Correção na validação do prompt
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*
@@ -251,6 +251,12 @@
     // --- 3b. LÓGICA NA 99FOOD ---
     function executarAutomacao99() {
         if (!is99Host) return;
+        const concluido = document.querySelector("#app > div > div.completed-page");
+        if (concluido && document.querySelector("#app > div > div.completed-page > div.content > div.success-icon") && /agradecemos pela entrega/i.test(concluido.innerText)) {
+            sessionStorage.removeItem('yoogaCod99');
+            window.location.href = URL_MESAS_YOOGA;
+            return;
+        }
         const cod = new URLSearchParams(window.location.search).get('cod');
         const input = document.querySelector("#app > div > div.page-container > div.input-section > div > div:nth-child(1) > input[type=text]");
 

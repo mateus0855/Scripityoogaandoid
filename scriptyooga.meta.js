@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V133
-// @version      133
-// @description  Correção na validação do prompt
+// @name         Confirmar Pedido Yooga - V134
+// @version      134
+// @description  Correção na validação
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*

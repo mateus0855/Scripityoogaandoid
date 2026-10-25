@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V130
-// @version      130
-// @description  Correção na validação
+// @name         Confirmar Pedido Yooga - V131
+// @version      131
+// @description  Correção na validação 99 ifood e yooga
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*

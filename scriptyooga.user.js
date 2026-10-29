@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V134
-// @version      134
-// @description  Correção na validação
+// @name         Confirmar Pedido Yooga - V135
+// @version      135
+// @description  Identifica pedidos iFood e 99Food pelo badge de origem do pedido.
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*
@@ -190,23 +190,19 @@
         yooga: { texto: "Confirmar Yooga", bg: "#1e63e9", cor: "#fff" }
     };
 
-    // Descobre a plataforma pela classe da img do card do pedido selecionado
-    function detectarPlataforma(num) {
-        const origem = document.querySelector("app-ver-pedido-component ion-row.dados-cliente ion-col:nth-child(1) > div:nth-child(2) > span:nth-child(1)");
-        const textoOrigem = origem ? origem.innerText.toLowerCase() : "";
-        if (textoOrigem.includes('ifood')) return 'ifood';
-        if (textoOrigem.includes('99food') || textoOrigem.includes('99 food')) return 'didi';
-        if (origem) return 'yooga';
+    // O badge pode ser renderizado fora do contêiner principal do detalhe do pedido.
+    function detectarPlataforma() {
+        const badgesOrigem = document.querySelectorAll(".badge.badge-primeiro.badge-ifood");
+        for (const badge of badgesOrigem) {
+            const textoOrigem = (badge.innerText || badge.textContent)
+                .replace(/\s+/g, " ")
+                .trim()
+                .toLowerCase();
 
-        const cards = Array.from(document.querySelectorAll('#shepherd-delivery-mocked-order delivery-order, delivery-order'));
-        const card = cards.find(c => c.matches('.selected, .active, .selecionado') || c.querySelector('.selected, .active, [class*="selected"]'));
-        const img = card && card.querySelector('div > div.top > div.left-side > img');
-        if (img) {
-            if (img.classList.contains('didi')) return 'didi';
-            if (img.classList.contains('ifood')) return 'ifood';
-            if (img.classList.contains('yooga')) return 'yooga';
+            if (textoOrigem.includes("feito pela 99food")) return 'didi';
+            if (textoOrigem.includes("feito pelo ifood")) return 'ifood';
         }
-        return num.startsWith("0800") ? 'ifood' : 'yooga';
+        return 'yooga';
     }
 
     function clicarQuandoExistir(seletor, tentativas) {
@@ -224,7 +220,7 @@
         const existente = document.getElementById("btn-confirmar-yooga");
         if (!ref) return;
 
-        const plataforma = detectarPlataforma(num);
+        const plataforma = detectarPlataforma();
         if (existente && existente.dataset.plataforma === plataforma && existente.dataset.num === num) return;
         if (existente) existente.remove();
 

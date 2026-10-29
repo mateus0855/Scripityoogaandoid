@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Confirmar Pedido Yooga - V134
-// @version      134
-// @description  Correção na validação
+// @name         Confirmar Pedido Yooga - V135
+// @version      135
+// @description  Identifica pedidos iFood e 99Food pelo badge de origem do pedido.
 // @author       Mateus
 // @match        *://app.yooga.com.br/*
 // @match        *://confirmacao-entrega-propria.ifood.com.br/*
